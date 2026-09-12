@@ -13,6 +13,10 @@ proc addPlugin(p: var MarkdownParser, plugin: proc(s: string): string) =
 proc parse(p: MarkdownParser, text: string): string =
   var result = text
   
+  # Fenced Code Blocks
+  # This handles ```code``` patterns
+  result = result.replaceRe(re"```(.*?)```", "<pre><code>$1</code></pre>", reDotAll)
+
   # Basic block parsing
   # Headers
   result = result.replaceRe(re"^# (.*)$", "<h1>$1</h1>", reMultiline)
@@ -22,6 +26,9 @@ proc parse(p: MarkdownParser, text: string): string =
   # Unordered Lists
   result = result.replaceRe(re"^\* (.*)$", "<li>$1</li>", reMultiline)
   result = result.replaceRe(re"^- (.*)$", "<li>$1</li>", reMultiline)
+
+  # Ordered Lists
+  result = result.replaceRe(re"^\d+\.\s+(.*)$", "<li>$1</li>", reMultiline)
   
   # Bold and Italic
   result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
