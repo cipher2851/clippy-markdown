@@ -37,6 +37,8 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^\d+\.\s+(.*)$", "<li>$1</li>", reMultiline)
   
   # Inline formatting
+  # Images: ![alt](url)
+  result = result.replaceRe(re"!\[(.*?)\]\((.*?)\)", "<img src='$2' alt='$1' />")
   # Inline Code
   result = result.replaceRe(re"`(.*?)`", "<code>$1</code>")
   # Links: [text](url)
