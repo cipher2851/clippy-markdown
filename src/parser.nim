@@ -36,6 +36,12 @@ proc parse(p: MarkdownParser, text: string): string =
   # Ordered Lists
   result = result.replaceRe(re"^\d+\.\s+(.*)$", "<li>$1</li>", reMultiline)
   
+  # Wrap lists in containers
+  # This is a simple approach: find sequences of <li> and wrap them
+  result = result.replaceRe(re"((?:<li>.*?</li>\s*)+)", "<ul>\n$1</ul>", reMultiline)
+  # Note: This basic implementation treats all lists as <ul> for simplicity, 
+  # a more advanced parser would distinguish between ol and ul.
+
   # Inline formatting
   # Images: ![alt](url)
   result = result.replaceRe(re"!\[(.*?)\]\((.*?)\)", "<img src='$2' alt='$1' />")
@@ -47,14 +53,21 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
   result = result.replaceRe(re"\*(.*?)\*", "<em>$1</em>")
   
-  # Paragraphs (very basic)
+  # Paragraphs
   var lines = result.splitLines()
   var processedLines: seq[string] = @[]
   for line in lines:
     let trimmed = line.strip()
     if trimmed == "":
       processedLines.add("")
-    elif trimmed.startsWith("<"):
+    elif trimmed.startsWith("<") && 
+          (trimmed.startsWith("<h") or 
+           trimmed.startsWith("<blockquote") or 
+           trimmed.startsWith("<ul") or 
+           trimmed.startsWith("<ol") or 
+           trimmed.startsWith("<li") or 
+           trimmed.startsWith("<pre") or 
+           trimmed.startsWith("<hr")):
       processedLines.add(line)
     else:
       processedLines.add("<p>" & line & "</p>")
