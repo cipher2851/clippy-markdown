@@ -18,6 +18,9 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"```(.*?)```", "<pre><code>$1</code></pre>", reDotAll)
 
   # Basic block parsing
+  # Horizontal Rules
+  result = result.replaceRe(re"^---$", "<hr />", reMultiline)
+
   # Headers
   result = result.replaceRe(re"^# (.*)$", "<h1>$1</h1>", reMultiline)
   result = result.replaceRe(re"^## (.*)$", "<h2>$1</h2>", reMultiline)
@@ -46,9 +49,10 @@ proc parse(p: MarkdownParser, text: string): string =
   var lines = result.splitLines()
   var processedLines: seq[string] = @[]
   for line in lines:
-    if line.strip() == "":
+    let trimmed = line.strip()
+    if trimmed == "":
       processedLines.add("")
-    elif line.startsWith("<"):
+    elif trimmed.startsWith("<"):
       processedLines.add(line)
     else:
       processedLines.add("<p>" & line & "</p>")
