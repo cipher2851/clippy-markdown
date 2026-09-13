@@ -23,6 +23,9 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^## (.*)$", "<h2>$1</h2>", reMultiline)
   result = result.replaceRe(re"^### (.*)$", "<h3>$1</h3>", reMultiline)
   
+  # Blockquotes
+  result = result.replaceRe(re"^> (.*)$", "<blockquote>$1</blockquote>", reMultiline)
+
   # Unordered Lists
   result = result.replaceRe(re"^\* (.*)$", "<li>$1</li>", reMultiline)
   result = result.replaceRe(re"^- (.*)$", "<li>$1</li>", reMultiline)
