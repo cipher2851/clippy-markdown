@@ -30,17 +30,20 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^> (.*)$", "<blockquote>$1</blockquote>", reMultiline)
 
   # Unordered Lists
-  result = result.replaceRe(re"^\* (.*)$", "<li>$1</li>", reMultiline)
-  result = result.replaceRe(re"^- (.*)$", "<li>$1</li>", reMultiline)
+  result = result.replaceRe(re"^\* (.*)$", "<li class='ul'>$1</li>", reMultiline)
+  result = result.replaceRe(re"^- (.*)$", "<li class='ul'>$1</li>", reMultiline)
 
   # Ordered Lists
-  result = result.replaceRe(re"^\d+\.\s+(.*)$", "<li>$1</li>", reMultiline)
+  result = result.replaceRe(re"^\d+\.\s+(.*)$", "<li class='ol'>$1</li>", reMultiline)
   
   # Wrap lists in containers
-  # This is a simple approach: find sequences of <li> and wrap them
-  result = result.replaceRe(re"((?:<li>.*?</li>\s*)+)", "<ul>\n$1</ul>", reMultiline)
-  # Note: This basic implementation treats all lists as <ul> for simplicity, 
-  # a more advanced parser would distinguish between ol and ul.
+  # Handle unordered lists
+  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul>\n$1</ul>", reMultiline)
+  # Handle ordered lists
+  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol>\n$1</ol>", reMultiline)
+  
+  # Clean up internal classes
+  result = result.replace("<li class='ul'>", "<li>").replace("<li class='ol'>", "<li>")
 
   # Inline formatting
   # Images: ![alt](url)
