@@ -21,6 +21,34 @@ proc parse(p: MarkdownParser, text: string): string =
   # Horizontal Rules
   result = result.replaceRe(re"^---$", "<hr />", reMultiline)
 
+  # Tables
+  # This is a simplified regex-based table parser
+  # Matches lines with | and attempts to wrap them in table tags
+  # Note: This requires a header row and a separator row
+  let tablePattern = re"((?:^\s*\|[^\n]*\|\s*\n(?:^\s*\|[- :|]*\|\s*\n)(?:^\s*\|[^\n]*\|\s*\n)*))"
+  result = result.replaceRe(tablePattern, proc(m: Match): string = 
+    var tableContent = m[0]
+    var lines = tableContent.splitLines()
+    var htmlTable = "<table>\n"
+    
+    for i, line in lines:
+      if line.strip() == "": continue
+      if i == 1 && line.contains("---"): continue # Skip separator row
+      
+      let tag = if i == 0: "th" else: "td"
+      let cells = line.split('|')
+      var rowHtml = "  <tr>"
+      for cell in cells:
+        let trimmed = cell.strip()
+        if trimmed != "":
+          rowHtml &= "<" & tag & ">" & trimmed & "</" & tag & ">"
+      rowHtml &= "</tr>\n"
+      htmlTable &= rowHtml
+    
+    htmlTable &= "</table>"
+    return htmlTable
+  , reMultiline)
+
   # Headers
   result = result.replaceRe(re"^# (.*)$", "<h1>$1</h1>", reMultiline)
   result = result.replaceRe(re"^## (.*)$", "<h2>$1</h2>", reMultiline)
@@ -72,7 +100,10 @@ proc parse(p: MarkdownParser, text: string): string =
            trimmed.startsWith("<ol") or 
            trimmed.startsWith("<li") or 
            trimmed.startsWith("<pre") or 
-           trimmed.startsWith("<hr")):
+           trimmed.startsWith("<hr") or
+           trimmed.startsWith("<table") or
+           trimmed.startsWith("  <tr") or
+           trimmed.startsWith("</table>") ):
       processedLines.add(line)
     else:
       processedLines.add("<p>" & line & "</p>")
