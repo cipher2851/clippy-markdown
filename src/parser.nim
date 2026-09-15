@@ -55,6 +55,8 @@ proc parse(p: MarkdownParser, text: string): string =
   # Bold and Italic
   result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
   result = result.replaceRe(re"\*(.*?)\*", "<em>$1</em>")
+  # Strikethrough
+  result = result.replaceRe(re"~~(.*?)~~", "<del>$1</del>")
   
   # Paragraphs
   var lines = result.splitLines()
