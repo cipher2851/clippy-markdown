@@ -57,6 +57,10 @@ proc parse(p: MarkdownParser, text: string): string =
   # Blockquotes
   result = result.replaceRe(re"^> (.*)$", "<blockquote>$1</blockquote>", reMultiline)
 
+  # Task lists (convert [ ] and [x] to checkboxes before list processing)
+  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[\s\]\s+(.*)$", "$1 <input type='checkbox' disabled /> $2", reMultiline)
+  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[x\]\s+(.*)$", "$1 <input type='checkbox' checked disabled /> $2", reMultiline)
+
   # Unordered Lists
   result = result.replaceRe(re"^\* (.*)$", "<li class='ul'>$1</li>", reMultiline)
   result = result.replaceRe(re"^- (.*)$", "<li class='ul'>$1</li>", reMultiline)
