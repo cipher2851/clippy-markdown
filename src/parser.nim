@@ -74,7 +74,19 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^### (.*)$", "<h3>$1</h3>", reMultiline)
   
   # Blockquotes
-  result = result.replaceRe(re"^> (.*)$", "<blockquote>$1</blockquote>", reMultiline)
+  # Matches contiguous lines starting with '>' and wraps them
+  result = result.replaceRe(re"((?:^>\s*.*\n?)+)", proc(m: Match): string = 
+    var content = m[0]
+    # Remove the leading '>' from each line
+    var lines = content.splitLines()
+    var processedLines: seq[string] = @[]
+    for line in lines:
+      if line.startsWith(">"):
+        processedLines.add(line[1..^1].strip())
+      else:
+        processedLines.add(line)
+    return "<blockquote>" & processedLines.join("\n") & "</blockquote>"
+  , reMultiline)
 
   # Task lists (convert [ ] and [x] to checkboxes before list processing)
   result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[\s\]\s+(.*)$", "$1 <input type='checkbox' disabled /> $2", reMultiline)
@@ -126,7 +138,8 @@ proc parse(p: MarkdownParser, text: string): string =
            trimmed.startsWith("<hr") or
            trimmed.startsWith("<table") or
            trimmed.startsWith("  <tr") or
-           trimmed.startsWith("</table>") ):
+           trimmed.startsWith("</table>") or
+           trimmed.startsWith("</blockquote>") ):
       processedLines.add(line)
     else:
       processedLines.add("<p>" & line & "</p>")
