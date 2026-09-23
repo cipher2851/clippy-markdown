@@ -10,6 +10,9 @@ proc newParser(): MarkdownParser =
 proc addPlugin(p: var MarkdownParser, plugin: proc(s: string): string) =
   p.plugins.add(plugin)
 
+proc escapeHtml(s: string): string =
+  result = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
+
 proc parse(p: MarkdownParser, text: string): string =
   var result = text
   
@@ -60,7 +63,7 @@ proc parse(p: MarkdownParser, text: string): string =
       for cell in cells:
         let trimmed = cell.strip()
         if trimmed != "":
-          rowHtml &= "<" & tag & ">" & trimmed & "</" & tag & ">"
+          rowHtml &= "<" & tag & ">" & escapeHtml(trimmed) & "</" & tag & ">"
       rowHtml &= "</tr>\n"
       htmlTable &= rowHtml
     
