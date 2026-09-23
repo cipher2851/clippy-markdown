@@ -13,6 +13,25 @@ proc addPlugin(p: var MarkdownParser, plugin: proc(s: string): string) =
 proc parse(p: MarkdownParser, text: string): string =
   var result = text
   
+  # Handle Escaped Characters
+  # Temporary replacement to preserve escaped characters during parsing
+  # We replace \* with a unique placeholder
+  let escMap = {
+    "\\*": "__ESC_AST__",
+    "\\_": "__ESC_UND__",
+    "\\#": "__ESC_HASH__",
+    "\\`": "__ESC_TICK__",
+    "\\~": "__ESC_TILD__",
+    "\\[": "__ESC_LBRK__",
+    "\\]": "__ESC_RBRK__",
+    "\\(": "__ESC_LPAR__",
+    "\\)": "__ESC_RPAR__",
+    "\\\": "__ESC_BSLASH__"
+  }
+  
+  for esc, placeholder in escMap.pairs:
+    result = result.replace(esc, placeholder)
+
   # Fenced Code Blocks
   # This handles ```code``` patterns
   result = result.replaceRe(re"```(.*?)```", "<pre><code>$1</code></pre>", reDotAll)
@@ -113,6 +132,11 @@ proc parse(p: MarkdownParser, text: string): string =
       processedLines.add("<p>" & line & "</p>")
   
   result = processedLines.join("\n")
+
+  # Restore Escaped Characters
+  for esc, placeholder in escMap.pairs:
+    let char = esc[1..^1] # Remove the backslash
+    result = result.replace(placeholder, char)
 
   # Run custom plugins
   for plugin in p.plugins:
