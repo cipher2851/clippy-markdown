@@ -88,7 +88,7 @@ proc parse(p: MarkdownParser, text: string): string =
         processedLines.add(line[1..^1].strip())
       else:
         processedLines.add(line)
-    return "<blockquote>" & processedLines.join("\n") & "</blockquote>"
+    return "<blockquote >" & processedLines.join("\n") & "</blockquote>"
   , reMultiline)
 
   # Task lists (convert [ ] and [x] to checkboxes before list processing)
@@ -104,9 +104,9 @@ proc parse(p: MarkdownParser, text: string): string =
   
   # Wrap lists in containers
   # Handle unordered lists
-  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul>\n$1</ul>", reMultiline)
+  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul >\n$1</ul>", reMultiline)
   # Handle ordered lists
-  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol>\n$1</ol>", reMultiline)
+  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol >\n$1</ol>", reMultiline)
   
   # Clean up internal classes
   result = result.replace("<li class='ul'>", "<li>").replace("<li class='ol'>", "<li>")
@@ -142,7 +142,9 @@ proc parse(p: MarkdownParser, text: string): string =
            trimmed.startsWith("<table") or
            trimmed.startsWith("  <tr") or
            trimmed.startsWith("</table>") or
-           trimmed.startsWith("</blockquote>") ):
+           trimmed.startsWith("</blockquote>") or
+           trimmed.startsWith("<div") or
+           trimmed.startsWith("</div>") ):
       processedLines.add(line)
     else:
       processedLines.add("<p>" & line & "</p>")
