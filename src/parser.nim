@@ -88,7 +88,7 @@ proc parse(p: MarkdownParser, text: string): string =
         processedLines.add(line[1..^1].strip())
       else:
         processedLines.add(line)
-    return "<blockquote>" & processedLines.join("\n") & "</blockquote>"
+    return "<blockquote >" & processedLines.join("\n") & "</blockquote>"
   , reMultiline)
 
   # Task lists (convert [ ] and [x] to checkboxes before list processing)
@@ -123,6 +123,12 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"\*(.*?)\*", "<em>$1</em>")
   # Strikethrough
   result = result.replaceRe(re"~~(.*?)~~", "<del>$1</del>")
+  
+  # Math blocks
+  # Display math: $$...$$
+  result = result.replaceRe(re"\$\$(.*?)\$\$", "<div class='math-display'>$1</div>", reDotAll)
+  # Inline math: $...$
+  result = result.replaceRe(re"\$([^$]+?)\$", "<span class='math-inline'>$1</span>")
   
   # Paragraphs
   var lines = result.splitLines()
