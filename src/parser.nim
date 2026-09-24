@@ -88,7 +88,7 @@ proc parse(p: MarkdownParser, text: string): string =
         processedLines.add(line[1..^1].strip())
       else:
         processedLines.add(line)
-    return "<blockquote >" & processedLines.join("\n") & "</blockquote>"
+    return "<blockquote>" & processedLines.join("\n") & "</blockquote>"
   , reMultiline)
 
   # Task lists (convert [ ] and [x] to checkboxes before list processing)
@@ -104,9 +104,9 @@ proc parse(p: MarkdownParser, text: string): string =
   
   # Wrap lists in containers
   # Handle unordered lists
-  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul >\n$1</ul>", reMultiline)
+  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul>\n$1</ul>", reMultiline)
   # Handle ordered lists
-  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol >\n$1</ol>", reMultiline)
+  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol>\n$1</ol>", reMultiline)
   
   # Clean up internal classes
   result = result.replace("<li class='ul'>", "<li>").replace("<li class='ol'>", "<li>")
@@ -131,28 +131,8 @@ proc parse(p: MarkdownParser, text: string): string =
     let trimmed = line.strip()
     if trimmed == "":
       processedLines.add("")
-    elif trimmed.startsWith("<") && 
-          (trimmed.startsWith("<h") or 
-           trimmed.startsWith("<blockquote") or 
-           trimmed.startsWith("<ul") or 
-           trimmed.startsWith("<ol") or 
-           trimmed.startsWith("<li") or 
-           trimmed.startsWith("<pre") or 
-           trimmed.startsWith("<hr") or
-           trimmed.startsWith("<table") or
-           trimmed.startsWith("  <tr") or
-           trimmed.startsWith("</table>") or
-           trimmed.startsWith("</blockquote>") or
-           trimmed.startsWith("<div") or
-           trimmed.startsWith("</div>") or
-           trimmed.startsWith("<section") or
-           trimmed.startsWith("</section>") or
-           trimmed.startsWith("<footer") or
-           trimmed.startsWith("</footer>") or
-           trimmed.startsWith("<header") or
-           trimmed.startsWith("</header>") or
-           trimmed.startsWith("<main") or
-           trimmed.startsWith("</main>") ):
+    elif trimmed.startsWith("<") && (trimmed.endsWith(">") or trimmed.contains(" </")):
+      # If the line starts with a tag and is likely a block element, don't wrap in <p>
       processedLines.add(line)
     else:
       processedLines.add("<p>" & line & "</p>")
