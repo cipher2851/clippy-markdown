@@ -88,7 +88,7 @@ proc parse(p: MarkdownParser, text: string): string =
         processedLines.add(line[1..^1].strip())
       else:
         processedLines.add(line)
-    return "<blockquote >" & processedLines.join("\n") & "</blockquote>"
+    return "<blockquote>" & processedLines.join("\n") & "</blockquote>"
   , reMultiline)
 
   # Task lists (convert [ ] and [x] to checkboxes before list processing)
@@ -96,16 +96,15 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[x\]\s+(.*)$", "$1 <input type='checkbox' checked disabled /> $2", reMultiline)
 
   # Unordered Lists
-  result = result.replaceRe(re"^\* (.*)$", "<li class='ul'>$1</li>", reMultiline)
-  result = result.replaceRe(re"^- (.*)$", "<li class='ul'>$1</li>", reMultiline)
+  result = result.replaceRe(re"^\s*[\*\-] (.*)$", "<li class='ul'>$1</li>", reMultiline)
 
   # Ordered Lists
-  result = result.replaceRe(re"^\d+\.\s+(.*)$", "<li class='ol'>$1</li>", reMultiline)
+  result = result.replaceRe(re"^\s*\d+\.\s+(.*)$", "<li class='ol'>$1</li>", reMultiline)
   
   # Wrap lists in containers
-  # Handle unordered lists
+  # Handle unordered lists: groups of <li> with ul class
   result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul>\n$1</ul>", reMultiline)
-  # Handle ordered lists
+  # Handle ordered lists: groups of <li> with ol class
   result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol>\n$1</ol>", reMultiline)
   
   # Clean up internal classes
