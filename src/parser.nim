@@ -144,7 +144,15 @@ proc parse(p: MarkdownParser, text: string): string =
            trimmed.startsWith("</table>") or
            trimmed.startsWith("</blockquote>") or
            trimmed.startsWith("<div") or
-           trimmed.startsWith("</div>") ):
+           trimmed.startsWith("</div>") or
+           trimmed.startsWith("<section") or
+           trimmed.startsWith("</section>") or
+           trimmed.startsWith("<footer") or
+           trimmed.startsWith("</footer>") or
+           trimmed.startsWith("<header") or
+           trimmed.startsWith("</header>") or
+           trimmed.startsWith("<main") or
+           trimmed.startsWith("</main>") ):
       processedLines.add(line)
     else:
       processedLines.add("<p>" & line & "</p>")
