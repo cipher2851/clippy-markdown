@@ -120,9 +120,12 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"`(.*?)`", "<code>$1</code>")
   # Links: [text](url)
   result = result.replaceRe(re"\[(.*?)\]\((.*?)\)", "<a href='$2'>$1</a>")
-  # Bold and Italic
+  # Bold
   result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
+  result = result.replaceRe(re"__(.*?)__", "<strong>$1</strong>")
+  # Italic
   result = result.replaceRe(re"\*(.*?)\*", "<em>$1</em>")
+  result = result.replaceRe(re"_(.*?)_", "<em>$1</em>")
   # Strikethrough
   result = result.replaceRe(re"~~(.*?)~~", "<del>$1</del>")
   
