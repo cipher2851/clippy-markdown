@@ -91,7 +91,8 @@ proc parse(p: MarkdownParser, text: string): string =
         processedLines.add(stripped)
       else:
         processedLines.add(line)
-    return "<blockquote>" & processedLines.join("\n") & "</blockquote>"
+    # Join and wrap. We don't wrap in <p> here yet, the final pass handles that
+    return "<blockquote class='md-blockquote'>" & processedLines.join("\n") & "</blockquote>"
   , reMultiline)
 
   # Task lists (convert [ ] and [x] to checkboxes before list processing)
@@ -138,7 +139,7 @@ proc parse(p: MarkdownParser, text: string): string =
   # Paragraphs
   var lines = result.splitLines()
   var processedLines: seq[string] = @[]
-  let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div"}
+  let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p"}
   
   for line in lines:
     let trimmed = line.strip()
