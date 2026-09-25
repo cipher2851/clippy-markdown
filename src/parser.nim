@@ -80,14 +80,15 @@ proc parse(p: MarkdownParser, text: string): string =
   # Matches contiguous lines starting with '>' and wraps them
   result = result.replaceRe(re"((?:^>\s*.*\n?)+)", proc(m: Match): string = 
     var content = m[0]
-    # Remove the leading '>' from each line
     var lines = content.splitLines()
     var processedLines: seq[string] = @[]
     for line in lines:
       if line.startsWith(">"):
         # Trim the leading '>' and one optional space
-        var trimmed = line[1..^1].strip()
-        processedLines.add(trimmed)
+        var stripped = line[1..^1]
+        if stripped.startsWith(" "):
+          stripped = stripped[1..^1]
+        processedLines.add(stripped)
       else:
         processedLines.add(line)
     return "<blockquote>" & processedLines.join("\n") & "</blockquote>"
