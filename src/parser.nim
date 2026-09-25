@@ -85,7 +85,9 @@ proc parse(p: MarkdownParser, text: string): string =
     var processedLines: seq[string] = @[]
     for line in lines:
       if line.startsWith(">"):
-        processedLines.add(line[1..^1].strip())
+        # Trim the leading '>' and one optional space
+        var trimmed = line[1..^1].strip()
+        processedLines.add(trimmed)
       else:
         processedLines.add(line)
     return "<blockquote>" & processedLines.join("\n") & "</blockquote>"
@@ -103,9 +105,9 @@ proc parse(p: MarkdownParser, text: string): string =
   
   # Wrap lists in containers
   # Handle unordered lists: groups of <li> with ul class
-  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul>\n$1</ul>", reMultiline)
+  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul\n$1</ul>", reMultiline)
   # Handle ordered lists: groups of <li> with ol class
-  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol>\n$1</ol>", reMultiline)
+  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol\n$1</ol>", reMultiline)
   
   # Clean up internal classes
   result = result.replace("<li class='ul'>", "<li>").replace("<li class='ol'>", "<li>")
@@ -132,12 +134,14 @@ proc parse(p: MarkdownParser, text: string): string =
   # Paragraphs
   var lines = result.splitLines()
   var processedLines: seq[string] = @[]
+  let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div"}
+  
   for line in lines:
     let trimmed = line.strip()
     if trimmed == "":
       processedLines.add("")
-    elif trimmed.startsWith("<") && (trimmed.endsWith(">") or trimmed.contains(" </")):
-      # If the line starts with a tag and is likely a block element, don't wrap in <p>
+    elif trimmed.startsWith("<") && any(trimmed.startsWith(tag) for tag in blockTags):
+      # If the line starts with a known block-level tag, don't wrap in <p>
       processedLines.add(line)
     else:
       processedLines.add("<p>" & line & "</p>")
