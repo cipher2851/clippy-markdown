@@ -74,12 +74,15 @@ proc parse(p: MarkdownParser, text: string): string =
       if i == 1 && line.contains("---"): continue # Skip separator row
       
       let tag = if i == 0: "th" else: "td"
-      let cells = line.split('|')
+      var cells = line.split('|')
+      # Remove leading and trailing empty strings from splitting |cell|cell|
+      if cells[0] == "": cells.delete(0)
+      if cells.len > 0 and cells[^1] == "": cells.delete(cells.len - 1)
+      
       var rowHtml = "  <tr>"
       for cell in cells:
         let trimmed = cell.strip()
-        if trimmed != "":
-          rowHtml &= "<" & tag & ">" & escapeHtml(trimmed) & "</" & tag & ">"
+        rowHtml &= "<" & tag & ">" & escapeHtml(trimmed) & "</" & tag & ">"
       rowHtml &= "</tr>\n"
       htmlTable &= rowHtml
     
