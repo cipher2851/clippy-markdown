@@ -95,7 +95,7 @@ proc parse(p: MarkdownParser, text: string): string =
   # Blockquotes
   # Matches contiguous lines starting with '>' and wraps them
   result = result.replaceRe(re"((?:^>\s*.*\n?)+)", proc(m: Match): string = 
-    var content = m[0]
+    var content = m[0].strip()
     var lines = content.splitLines()
     var processedLines: seq[string] = @[]
     for line in lines:
@@ -107,7 +107,6 @@ proc parse(p: MarkdownParser, text: string): string =
         processedLines.add(stripped)
       else:
         processedLines.add(line)
-    # Join and wrap. We don't wrap in <p> here yet, the final pass handles that
     return "<blockquote class='md-blockquote'>" & processedLines.join("\n") & "</blockquote>"
   , reMultiline)
 
@@ -155,7 +154,8 @@ proc parse(p: MarkdownParser, text: string): string =
   # Paragraphs
   var lines = result.splitLines()
   var processedLines: seq[string] = @[]
-  let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p"}
+  # We now include basic HTML tags to avoid wrapping them in <p>
+  let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p", "<section", "<article", "<header", "<footer"}
   
   for line in lines:
     let trimmed = line.strip()
