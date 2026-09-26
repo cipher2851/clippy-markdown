@@ -39,6 +39,22 @@ proc parse(p: MarkdownParser, text: string): string =
   # This handles ```code``` patterns
   result = result.replaceRe(re"```(.*?)```", "<pre><code>$1</code></pre>", reDotAll)
 
+  # Indented Code Blocks
+  # Matches lines starting with 4 spaces or 1 tab
+  result = result.replaceRe(re"((?:^\s{4}.*\n?)+)", proc(m: Match): string = 
+    var content = m[0]
+    var lines = content.splitLines()
+    var processedLines: seq[string] = @[]
+    for line in lines:
+      if line.startsWith("    "):
+        processedLines.add(line[4..^1])
+      elif line.startsWith("\t"):
+        processedLines.add(line[1..^1])
+      else:
+        processedLines.add(line)
+    return "<pre><code>" & processedLines.join("\n") & "</code></pre>"
+  , reMultiline)
+
   # Basic block parsing
   # Horizontal Rules
   result = result.replaceRe(re"^---$", "<hr />", reMultiline)
