@@ -97,20 +97,23 @@ proc parse(p: MarkdownParser, text: string): string =
   
   # Blockquotes
   # Matches contiguous lines starting with '>' and wraps them
+  # This now handles nested blockquotes by recursively processing content
   result = result.replaceRe(re"((?:^>\s*.*\n?)+)", proc(m: Match): string = 
-    var content = m[0].strip()
+    var content = m[0]
     var lines = content.splitLines()
     var processedLines: seq[string] = @[]
     for line in lines:
       if line.startsWith(">"):
-        # Trim the leading '>' and one optional space
+        # Trim only one level of '>' and one optional space
         var stripped = line[1..^1]
         if stripped.startsWith(" "):
           stripped = stripped[1..^1]
         processedLines.add(stripped)
       else:
         processedLines.add(line)
-    return "<blockquote class='md-blockquote'>" & processedLines.join("\n") & "</blockquote>"
+    let inner = processedLines.join("\n")
+    # Recursively parse the inner content to support nested quotes or other MD
+    return "<blockquote class='md-blockquote'>" & p.parse(inner) & "</blockquote>"
   , reMultiline)
 
   # Footnote Definitions
@@ -174,6 +177,7 @@ proc parse(p: MarkdownParser, text: string): string =
       # If the line starts with a known block-level tag, don't wrap in <p>
       processedLines.add(line)
     else:
+      # Avoid wrapping in <p> if the content is already fundamentally an HTML block
       processedLines.add("<p>" & line & "</p>")
   
   result = processedLines.join("\n")
