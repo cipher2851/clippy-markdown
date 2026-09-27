@@ -113,6 +113,10 @@ proc parse(p: MarkdownParser, text: string): string =
     return "<blockquote class='md-blockquote'>" & processedLines.join("\n") & "</blockquote>"
   , reMultiline)
 
+  # Footnote Definitions
+  # Matches [^1]: content
+  result = result.replaceRe(re"^\s*\[\^([^\]]+)\]: (.*)$", "<div class='md-footnote' id='fn-\$1'> <small>\$1: \$2</small> </div>", reMultiline)
+
   # Task lists (convert [ ] and [x] to checkboxes before list processing)
   result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[\s\]\s+(.*)$", "$1 <input type='checkbox' disabled /> $2", reMultiline)
   result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[x\]\s+(.*)$", "$1 <input type='checkbox' checked disabled /> $2", reMultiline)
@@ -139,6 +143,8 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"`(.*?)`", "<code>$1</code>")
   # Links: [text](url)
   result = result.replaceRe(re"\[(.*?)\]\((.*?)\)", "<a href='$2'>$1</a>")
+  # Footnote References: [^1]
+  result = result.replaceRe(re"\[\^([^\]]+)\]", "<sup><a href='#fn-\$1'>[\$1]</a></sup>")
   # Bold
   result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
   result = result.replaceRe(re"__(.*?)__", "<strong>$1</strong>")
