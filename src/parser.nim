@@ -111,8 +111,19 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^\s*\[\^([^\]]+)\]: (.*)$", "<div class='md-footnote' id='fn-\$1'> <small>\$1: \$2</small> </div>", reMultiline)
 
   # Task lists
-  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[\s\]\s+(.*)$", "$1 <input type='checkbox' disabled /> $2", reMultiline)
-  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[x\]\s+(.*)$", "$1 <input type='checkbox' checked disabled /> $2", reMultiline)
+  # Added class to support grouping into <ul> or <ol>
+  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[\s\]\s+(.*)$", proc(m: Match): string = 
+    let prefix = m[1]
+    let content = m[2]
+    let cls = if prefix.contains(".") then "ol" else "ul"
+    return "<li class='" & cls & "'> <input type='checkbox' disabled /> " & content & "</li>"
+  , reMultiline)
+  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[x\]\s+(.*)$", proc(m: Match): string = 
+    let prefix = m[1]
+    let content = m[2]
+    let cls = if prefix.contains(".") then "ol" else "ul"
+    return "<li class='" & cls & "'> <input type='checkbox' checked disabled /> " & content & "</li>"
+  , reMultiline)
 
   # Unordered Lists
   result = result.replaceRe(re"^\s*[\*\-] (.*)$", "<li class='ul'>$1</li>", reMultiline)
@@ -121,8 +132,8 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^\s*\d+\.\s+(.*)$", "<li class='ol'>$1</li>", reMultiline)
   
   # Wrap lists
-  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul>\n$1</ul>", reMultiline)
-  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol>\n$1</ol>", reMultiline)
+  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul\n$1</ul>", reMultiline)
+  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol\n$1</ol>", reMultiline)
   
   result = result.replace("<li class='ul'>", "<li>").replace("<li class='ol'>", "<li>")
 
@@ -144,7 +155,7 @@ proc parse(p: MarkdownParser, text: string): string =
   # Paragraphs
   var lines = result.splitLines()
   var processedLines: seq[string] = @[]
-  let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p", "<section", "<article", "<header", "<footer"}
+  let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p", "<section", "<article", "<header", "<footer", "<li"}
   
   for line in lines:
     let trimmed = line.strip()
