@@ -33,6 +33,9 @@ proc parse(p: MarkdownParser, text: string): string =
   for esc, placeholder in escMap.pairs:
     result = result.replace(esc, placeholder)
 
+  # HTML Comments
+  result = result.replaceRe(re"<!--.*?-->", "", reDotAll)
+
   # Fenced Code Blocks
   # Use a callback to ensure content inside code blocks is HTML escaped
   result = result.replaceRe(re"```(.*?)```", proc(m: Match): string = 
@@ -157,10 +160,11 @@ proc parse(p: MarkdownParser, text: string): string =
   var processedLines: seq[string] = @[]
   let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p", "<section", "<article", "<header", "<footer", "<li"}
   
-  for line in lines:
+  for i, line in lines:
     let trimmed = line.strip()
     if trimmed == "":
-      processedLines.add("")
+      if i < lines.len - 1:
+        processedLines.add("")
     elif trimmed.startsWith("<") && any(trimmed.startsWith(tag) for tag in blockTags):
       processedLines.add(line)
     else:
