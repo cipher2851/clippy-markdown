@@ -17,8 +17,6 @@ proc parse(p: MarkdownParser, text: string): string =
   var result = text
   
   # Handle Escaped Characters
-  # Temporary replacement to preserve escaped characters during parsing
-  # We replace \* with a unique placeholder
   let escMap = {
     "\\*": "__ESC_AST__",
     "\\_": "__ESC_UND__",
@@ -36,23 +34,24 @@ proc parse(p: MarkdownParser, text: string): string =
     result = result.replace(esc, placeholder)
 
   # Fenced Code Blocks
-  # This handles ```code``` patterns
-  result = result.replaceRe(re"```(.*?)```", "<pre><code>$1</code></pre>", reDotAll)
+  # Use a callback to ensure content inside code blocks is HTML escaped
+  result = result.replaceRe(re"```(.*?)```", proc(m: Match): string = 
+    return "<pre><code style='white-space: pre-wrap;'>" & escapeHtml(m[1]) & "</code></pre>"
+  , reDotAll)
 
   # Indented Code Blocks
-  # Matches lines starting with 4 spaces or 1 tab
   result = result.replaceRe(re"((?:^\s{4}.*\n?)+)", proc(m: Match): string = 
     var content = m[0]
     var lines = content.splitLines()
     var processedLines: seq[string] = @[]
     for line in lines:
       if line.startsWith("    "):
-        processedLines.add(line[4..^1])
+        processedLines.add(escapeHtml(line[4..^1]))
       elif line.startsWith("\t"):
-        processedLines.add(line[1..^1])
+        processedLines.add(escapeHtml(line[1..^1]))
       else:
-        processedLines.add(line)
-    return "<pre><code>" & processedLines.join("\n") & "</code></pre>"
+        processedLines.add(escapeHtml(line))
+    return "<pre><code style='white-space: pre-wrap;'>" & processedLines.join("\n") & "</code></pre>"
   , reMultiline)
 
   # Basic block parsing
@@ -60,22 +59,18 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^---$", "<hr />", reMultiline)
 
   # Tables
-  # This is a simplified regex-based table parser
-  # Matches lines with | and attempts to wrap them in table tags
-  # Note: This requires a header row and a separator row
   let tablePattern = re"((?:^\s*\|[^\n]*\|\s*\n(?:^\s*\|[- :|]*\|\s*\n)(?:^\s*\|[^\n]*\|\s*\n)*))"
   result = result.replaceRe(tablePattern, proc(m: Match): string = 
     var tableContent = m[0]
     var lines = tableContent.splitLines()
-    var htmlTable = "<table>\n"
+    var htmlTable = "<table border='1'>\n"
     
     for i, line in lines:
       if line.strip() == "": continue
-      if i == 1 && line.contains("---"): continue # Skip separator row
+      if i == 1 && line.contains("---"): continue
       
       let tag = if i == 0: "th" else: "td"
       var cells = line.split('|')
-      # Remove leading and trailing empty strings from splitting |cell|cell|
       if cells[0] == "": cells.delete(0)
       if cells.len > 0 and cells[^1] == "": cells.delete(cells.len - 1)
       
@@ -96,15 +91,12 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^### (.*)$", "<h3>$1</h3>", reMultiline)
   
   # Blockquotes
-  # Matches contiguous lines starting with '>' and wraps them
-  # This now handles nested blockquotes by recursively processing content
   result = result.replaceRe(re"((?:^>\s*.*\n?)+)", proc(m: Match): string = 
     var content = m[0]
     var lines = content.splitLines()
     var processedLines: seq[string] = @[]
     for line in lines:
       if line.startsWith(">"):
-        # Trim only one level of '>' and one optional space
         var stripped = line[1..^1]
         if stripped.startsWith(" "):
           stripped = stripped[1..^1]
@@ -112,15 +104,13 @@ proc parse(p: MarkdownParser, text: string): string =
       else:
         processedLines.add(line)
     let inner = processedLines.join("\n")
-    # Recursively parse the inner content to support nested quotes or other MD
     return "<blockquote class='md-blockquote'>" & p.parse(inner) & "</blockquote>"
   , reMultiline)
 
   # Footnote Definitions
-  # Matches [^1]: content
   result = result.replaceRe(re"^\s*\[\^([^\]]+)\]: (.*)$", "<div class='md-footnote' id='fn-\$1'> <small>\$1: \$2</small> </div>", reMultiline)
 
-  # Task lists (convert [ ] and [x] to checkboxes before list processing)
+  # Task lists
   result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[\s\]\s+(.*)$", "$1 <input type='checkbox' disabled /> $2", reMultiline)
   result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[x\]\s+(.*)$", "$1 <input type='checkbox' checked disabled /> $2", reMultiline)
 
@@ -130,43 +120,30 @@ proc parse(p: MarkdownParser, text: string): string =
   # Ordered Lists
   result = result.replaceRe(re"^\s*\d+\.\s+(.*)$", "<li class='ol'>$1</li>", reMultiline)
   
-  # Wrap lists in containers
-  # Handle unordered lists: groups of <li> with ul class
-  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul\n$1</ul>", reMultiline)
-  # Handle ordered lists: groups of <li> with ol class
-  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol\n$1</ol>", reMultiline)
+  # Wrap lists
+  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul>\n$1</ul>", reMultiline)
+  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol>\n$1</ol>", reMultiline)
   
-  # Clean up internal classes
   result = result.replace("<li class='ul'>", "<li>").replace("<li class='ol'>", "<li>")
 
   # Inline formatting
-  # Images: ![alt](url)
   result = result.replaceRe(re"!\[(.*?)\]\((.*?)\)", "<img src='$2' alt='$1' />")
-  # Inline Code
   result = result.replaceRe(re"`(.*?)`", "<code>$1</code>")
-  # Links: [text](url)
   result = result.replaceRe(re"\[(.*?)\]\((.*?)\)", "<a href='$2'>$1</a>")
-  # Footnote References: [^1]
   result = result.replaceRe(re"\[\^([^\]]+)\]", "<sup><a href='#fn-\$1'>[\$1]</a></sup>")
-  # Bold
   result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
   result = result.replaceRe(re"__(.*?)__", "<strong>$1</strong>")
-  # Italic
   result = result.replaceRe(re"\*(.*?)\*", "<em>$1</em>")
   result = result.replaceRe(re"_(.*?)_", "<em>$1</em>")
-  # Strikethrough
   result = result.replaceRe(re"~~(.*?)~~", "<del>$1</del>")
   
   # Math blocks
-  # Display math: $$...$$
   result = result.replaceRe(re"\$\$(.*?)\$\$", "<div class='math-display'>$1</div>", reDotAll)
-  # Inline math: $...$
   result = result.replaceRe(re"\$([^$]+?)\$", "<span class='math-inline'>$1</span>")
   
   # Paragraphs
   var lines = result.splitLines()
   var processedLines: seq[string] = @[]
-  # We now include basic HTML tags to avoid wrapping them in <p>
   let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p", "<section", "<article", "<header", "<footer"}
   
   for line in lines:
@@ -174,17 +151,15 @@ proc parse(p: MarkdownParser, text: string): string =
     if trimmed == "":
       processedLines.add("")
     elif trimmed.startsWith("<") && any(trimmed.startsWith(tag) for tag in blockTags):
-      # If the line starts with a known block-level tag, don't wrap in <p>
       processedLines.add(line)
     else:
-      # Avoid wrapping in <p> if the content is already fundamentally an HTML block
       processedLines.add("<p>" & line & "</p>")
   
   result = processedLines.join("\n")
 
   # Restore Escaped Characters
   for esc, placeholder in escMap.pairs:
-    let char = esc[1..^1] # Remove the backslash
+    let char = esc[1..^1]
     result = result.replace(placeholder, char)
 
   # Run custom plugins
