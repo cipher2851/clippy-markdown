@@ -138,16 +138,22 @@ proc parse(p: MarkdownParser, text: string): string =
   
   result = result.replace("<li class='ul'>", "<li>").replace("<li class='ol'>", "<li>")
 
-  # Inline formatting
-  result = result.replaceRe(re"!\[(.*?)\]\((.*?)\)", "<img src='$2' alt='$1' />")
-  result = result.replaceRe(re"`(.*?)`", "<code>$1</code>")
-  result = result.replaceRe(re"\[(.*?)\]\((.*?)\)", "<a href='$2'>$1</a>")
-  result = result.replaceRe(re"\[\^([^\]]+)\]", "<sup><a href='#fn-\$1'>[\$1]</a></sup>")
-  result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
-  result = result.replaceRe(re"__(.*?)__", "<strong>$1</strong>")
-  result = result.replaceRe(re"\*(.*?)\*", "<em>$1</em>")
-  result = result.replaceRe(re"_(.*?)_", "<em>$1</em>")
-  result = result.replaceRe(re"~~(.*?)~~", "<del>$1</del>")
+  # Inline formatting - Applied multiple times to allow nesting (e.g. bold inside italic)
+  var changed = true
+  var iterations = 0
+  while changed and iterations < 3:
+    let prev = result
+    result = result.replaceRe(re"!\[(.*?)\]\((.*?)\)", "<img src='$2' alt='$1' />")
+    result = result.replaceRe(re"`(.*?)`", "<code>$1</code>")
+    result = result.replaceRe(re"\[(.*?)\]\((.*?)\)", "<a href='$2'>$1</a>")
+    result = result.replaceRe(re"\[\^([^\]]+)\]", "<sup><a href='#fn-\$1'>[\$1]</a></sup>")
+    result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
+    result = result.replaceRe(re"__(.*?)__", "<strong>$1</strong>")
+    result = result.replaceRe(re"\*(.*?)\*", "<em>$1</em>")
+    result = result.replaceRe(re"_(.*?)_", "<em>$1</em>")
+    result = result.replaceRe(re"~~(.*?)~~", "<del>$1</del>")
+    changed = prev != result
+    iterations.inc()
   
   # Math blocks
   result = result.replaceRe(re"\$\$(.*?)\$\$", "<div class='math-display'>$1</div>", reDotAll)
