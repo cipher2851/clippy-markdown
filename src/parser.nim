@@ -114,7 +114,6 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^\s*\[\^([^\]]+)\]: (.*)$", "<div class='md-footnote' id='fn-\$1'> <small>\$1: \$2</small> </div>", reMultiline)
 
   # Task lists
-  # Added class to support grouping into <ul> or <ol>
   result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[\s\]\s+(.*)$", proc(m: Match): string = 
     let prefix = m[1]
     let content = m[2]
@@ -158,6 +157,7 @@ proc parse(p: MarkdownParser, text: string): string =
   # Paragraphs
   var lines = result.splitLines()
   var processedLines: seq[string] = @[]
+  # Updated blockTags to include more precise matching
   let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p", "<section", "<article", "<header", "<footer", "<li"}
   
   for i, line in lines:
