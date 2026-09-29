@@ -37,7 +37,6 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"<!--.*?-->", "", reDotAll)
 
   # Fenced Code Blocks
-  # Use a callback to ensure content inside code blocks is HTML escaped
   result = result.replaceRe(re"```(.*?)```", proc(m: Match): string = 
     return "<pre><code style='white-space: pre-wrap;'>" & escapeHtml(m[1]) & "</code></pre>"
   , reDotAll)
@@ -157,7 +156,6 @@ proc parse(p: MarkdownParser, text: string): string =
   # Paragraphs
   var lines = result.splitLines()
   var processedLines: seq[string] = @[]
-  # Updated blockTags to include more precise matching
   let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p", "<section", "<article", "<header", "<footer", "<li"}
   
   for i, line in lines:
