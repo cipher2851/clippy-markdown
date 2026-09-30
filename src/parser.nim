@@ -152,7 +152,13 @@ proc parse(p: MarkdownParser, text: string): string =
       return img
     )
     result = result.replaceRe(re"`(.*?)`", "<code>$1</code>")
-    result = result.replaceRe(re"\[(.*?)\]\((.*?)\)", "<a href='$2'>$1</a>")
+    # Handle Links: [text](url "title") or [text](url)
+    result = result.replaceRe(re"\[([^\]]*)\]\(([^\s\)]+)(?:\s+["'](.*?)["'])?\)", proc(m: Match): string = 
+      var link = "<a href='" & m[2] & "'>" & m[1] & "</a>"
+      if m.len > 3 and m[3] != "":
+        link = "<a href='" & m[2] & "' title='" & m[3] & "'>" & m[1] & "</a>"
+      return link
+    )
     result = result.replaceRe(re"\[\^([^\]]+)\]", "<sup><a href='#fn-\$1'>[\$1]</a></sup>")
     result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
     result = result.replaceRe(re"__(.*?)__", "<strong>$1</strong>")
