@@ -143,7 +143,14 @@ proc parse(p: MarkdownParser, text: string): string =
   var iterations = 0
   while changed and iterations < 3:
     let prev = result
-    result = result.replaceRe(re"!\[(.*?)\]\((.*?)\)", "<img src='$2' alt='$1' />")
+    # Handle Images: ![alt](url "title") or ![alt](url)
+    result = result.replaceRe(re"!\[([^\]]*)\]\(([^\s\)]+)(?:\s+["'](.*?)["'])?\)", proc(m: Match): string = 
+      var img = "<img src='" & m[2] & "' alt='" & m[1] & "'"
+      if m.len > 3 and m[3] != "":
+        img &= " title='" & m[3] & "'"
+      img &= " />"
+      return img
+    )
     result = result.replaceRe(re"`(.*?)`", "<code>$1</code>")
     result = result.replaceRe(re"\[(.*?)\]\((.*?)\)", "<a href='$2'>$1</a>")
     result = result.replaceRe(re"\[\^([^\]]+)\]", "<sup><a href='#fn-\$1'>[\$1]</a></sup>")
