@@ -165,6 +165,7 @@ proc parse(p: MarkdownParser, text: string): string =
     result = result.replaceRe(re"\*(.*?)\*", "<em>$1</em>")
     result = result.replaceRe(re"_(.*?)_", "<em>$1</em>")
     result = result.replaceRe(re"~~(.*?)~~", "<del>$1</del>")
+    result = result.replaceRe(re"~([^~]+?)~", "<del>$1</del>")
     changed = prev != result
     iterations.inc()
   
