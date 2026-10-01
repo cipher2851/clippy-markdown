@@ -180,8 +180,7 @@ proc parse(p: MarkdownParser, text: string): string =
   for i, line in lines:
     let trimmed = line.strip()
     if trimmed == "":
-      if i < lines.len - 1:
-        processedLines.add("")
+      processedLines.add("")
     elif trimmed.startsWith("<") && any(trimmed.startsWith(tag) for tag in blockTags):
       processedLines.add(line)
     else:
