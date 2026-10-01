@@ -61,7 +61,7 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^---$", "<hr />", reMultiline)
 
   # Tables
-  let tablePattern = re"((?:^\s*\|[^\n]*\|\s*\n(?:^\s*\|[- :|]*\|\s*\n)(?:^\s*\|[^\n]*\|\s*\n)*))"
+  let tablePattern = re"((?:^\s*\|[^\n]*\|\s*\n(?:^\s*\|[- :|]*\s*\|\s*\n)(?:^\s*\|[^\n]*\|\s*\n)*))"
   result = result.replaceRe(tablePattern, proc(m: Match): string = 
     var tableContent = m[0]
     var lines = tableContent.splitLines()
@@ -175,18 +175,29 @@ proc parse(p: MarkdownParser, text: string): string =
   # Paragraphs
   var lines = result.splitLines()
   var processedLines: seq[string] = @[]
-  # expanded set of block-level tags that should not be wrapped in <p>
   let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p", "<section", "<article", "<header", "<footer", "<li", "<code"}
   
-  for i, line in lines:
+  var currentParagraph = ""
+  
+  proc flushParagraph() = 
+    if currentParagraph.strip() != "":
+      processedLines.add("<p>" & currentParagraph.strip() & "</p>")
+    currentParagraph = ""
+
+  for line in lines:
     let trimmed = line.strip()
     if trimmed == "":
+      flushParagraph()
       processedLines.add("")
     elif trimmed.startsWith("<") && any(trimmed.startsWith(tag) for tag in blockTags):
+      flushParagraph()
       processedLines.add(line)
     else:
-      processedLines.add("<p>" & line & "</p>")
-  
+      if currentParagraph != "":
+        currentParagraph &= " "
+      currentParagraph &= line
+
+  flushParagraph()
   result = processedLines.join("\n")
 
   # Restore Escaped Characters
