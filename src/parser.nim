@@ -145,25 +145,26 @@ proc parse(p: MarkdownParser, text: string): string =
     let prev = result
     # Handle Images: ![alt](url "title") or ![alt](url)
     result = result.replaceRe(re"!\[([^\]]*)\]\(([^\s\)]+)(?:\s+["'](.*?)["'])?\)", proc(m: Match): string = 
-      var img = "<img src='" & m[2] & "' alt='" & m[1] & "'"
+      var img = "<img src='" & escapeHtml(m[2]) & "' alt='" & escapeHtml(m[1]) & "'"
       if m.len > 3 and m[3] != "":
-        img &= " title='" & m[3] & "'"
+        img &= " title='" & escapeHtml(m[3]) & "'"
       img &= " />"
       return img
     )
     result = result.replaceRe(re"`(.*?)`", "<code>$1</code>")
     # Handle Links: [text](url "title") or [text](url)
     result = result.replaceRe(re"\[([^\]]*)\]\(([^\s\)]+)(?:\s+["'](.*?)["'])?\)", proc(m: Match): string = 
-      var link = "<a href='" & m[2] & "'>" & m[1] & "</a>"
+      var link = "<a href='" & escapeHtml(m[2]) & "'>" & m[1] & "</a>"
       if m.len > 3 and m[3] != "":
-        link = "<a href='" & m[2] & "' title='" & m[3] & "'>" & m[1] & "</a>"
+        link = "<a href='" & escapeHtml(m[2]) & "' title='" & escapeHtml(m[3]) & "'>" & m[1] & "</a>"
       return link
     )
     result = result.replaceRe(re"\[\^([^\]]+)\]", "<sup><a href='#fn-\$1'>[\$1]</a></sup>")
     result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
     result = result.replaceRe(re"__(.*?)__", "<strong>$1</strong>")
     result = result.replaceRe(re"\*(.*?)\*", "<em>$1</em>")
-    result = result.replaceRe(re"_(.*?)_", "<em>$1</em>")
+    # Refined underscore italic: only match if it's at a word boundary or start/end of string
+    result = result.replaceRe(re"(?<!\w)_(.*?)(?!\w)_", "<em>$1</em>")
     result = result.replaceRe(re"~~(.*?)~~", "<del>$1</del>")
     result = result.replaceRe(re"~([^~]+?)~", "<del>$1</del>")
     changed = prev != result
