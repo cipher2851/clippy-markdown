@@ -13,6 +13,13 @@ proc addPlugin(p: var MarkdownParser, plugin: proc(s: string): string) =
 proc escapeHtml(s: string): string =
   result = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
 
+proc slugify(s: string): string =
+  # Basic slugification for header IDs
+  result = s.toLowerAscii()
+  result = result.replaceRe(re"[^a-z0-9\s-]", "")
+  result = result.replaceRe(re"\s+", "-")
+  result = result.strip(chars = {'-': true})
+
 proc parse(p: MarkdownParser, text: string): string =
   var result = text
   
@@ -87,10 +94,16 @@ proc parse(p: MarkdownParser, text: string): string =
     return htmlTable
   , reMultiline)
 
-  # Headers
-  result = result.replaceRe(re"^# (.*)$", "<h1>$1</h1>", reMultiline)
-  result = result.replaceRe(re"^## (.*)$", "<h2>$1</h2>", reMultiline)
-  result = result.replaceRe(re"^### (.*)$", "<h3>$1</h3>", reMultiline)
+  # Headers with IDs
+  result = result.replaceRe(re"^# (.*)$", proc(m: Match): string = 
+    return "<h1 id='" & slugify(m[1]) & "'>" & m[1] & "</h1>"
+  , reMultiline)
+  result = result.replaceRe(re"^## (.*)$", proc(m: Match): string = 
+    return "<h2 id='" & slugify(m[1]) & "'>" & m[1] & "</h2>"
+  , reMultiline)
+  result = result.replaceRe(re"^### (.*)$", proc(m: Match): string = 
+    return "<h3 id='" & slugify(m[1]) & "'>" & m[1] & "</h3>"
+  , reMultiline)
   
   # Blockquotes
   result = result.replaceRe(re"((?:^>\s*.*\n?)+)", proc(m: Match): string = 
