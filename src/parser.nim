@@ -132,7 +132,7 @@ proc parse(p: MarkdownParser, text: string): string =
   # Ordered Lists
   result = result.replaceRe(re"^\s*\d+\.\s+(.*)$", "<li class='ol'>$1</li>", reMultiline)
   
-  # Wrap lists
+  # Wrap lists - use non-greedy match to handle distinct lists
   result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul\n$1</ul>", reMultiline)
   result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol\n$1</ol>", reMultiline)
   
