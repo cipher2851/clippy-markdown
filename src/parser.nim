@@ -64,8 +64,8 @@ proc parse(p: MarkdownParser, text: string): string =
   , reMultiline)
 
   # Basic block parsing
-  # Horizontal Rules
-  result = result.replaceRe(re"^---$", "<hr />", reMultiline)
+  # Horizontal Rules (Thematic Breaks)
+  result = result.replaceRe(re"^\s*([-*_])\s*(\1\s*){2,}$", "<hr />", reMultiline)
 
   # Tables
   let tablePattern = re"((?:^\s*\|[^\n]*\|\s*\n(?:^\s*\|[- :|]*\s*\|\s*\n)(?:^\s*\|[^\n]*\|\s*\n)*))"
