@@ -195,8 +195,9 @@ proc parse(p: MarkdownParser, text: string): string =
   var currentParagraph = ""
   
   proc flushParagraph() = 
-    if currentParagraph.strip() != "":
-      processedLines.add("<p>" & currentParagraph.strip() & "</p>")
+    let trimmed = currentParagraph.strip()
+    if trimmed != "":
+      processedLines.add("<p>" & trimmed & "</p>")
     currentParagraph = ""
 
   for line in lines:
@@ -205,7 +206,6 @@ proc parse(p: MarkdownParser, text: string): string =
       flushParagraph()
       processedLines.add("")
     elif trimmed.startsWith("<") && any(trimmed.startsWith(tag) for tag in blockTags):
-      # Only flush if the tag isn't an inline element (like <span>) that might have been injected
       if not trimmed.startsWith("<span"):
         flushParagraph()
         processedLines.add(line)
