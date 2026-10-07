@@ -190,7 +190,7 @@ proc parse(p: MarkdownParser, text: string): string =
   # Paragraphs
   var lines = result.splitLines()
   var processedLines: seq[string] = @[]
-  let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p", "<section", "<article", "<header", "<footer", "<li", "<code"}
+  let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p", "<section", "<article", "<header", "<footer", "<li", "<code", "<span"}
   
   var currentParagraph = ""
   
@@ -205,8 +205,14 @@ proc parse(p: MarkdownParser, text: string): string =
       flushParagraph()
       processedLines.add("")
     elif trimmed.startsWith("<") && any(trimmed.startsWith(tag) for tag in blockTags):
-      flushParagraph()
-      processedLines.add(line)
+      # Only flush if the tag isn't an inline element (like <span>) that might have been injected
+      if not trimmed.startsWith("<span"):
+        flushParagraph()
+        processedLines.add(line)
+      else:
+        if currentParagraph != "":
+          currentParagraph &= " "
+        currentParagraph &= line
     else:
       if currentParagraph != "":
         currentParagraph &= " "
