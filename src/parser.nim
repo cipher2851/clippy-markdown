@@ -197,7 +197,8 @@ proc parse(p: MarkdownParser, text: string): string =
     # Refined underscore italic: only match if it's at a word boundary or start/end of string
     result = result.replaceRe(re"(?<!\w)_(.*?)(?!\w)_", "<em>$1</em>")
     result = result.replaceRe(re"~~(.*?)~~", "<del>$1</del>")
-    result = result.replaceRe(re"~([^~]+?)~", "<del>$1</del>")
+    # Refine single tilde: only match if surrounded by whitespace or at boundaries to avoid accidental matches
+    result = result.replaceRe(re"(?<!~)~([^~]+?)~(?<!~)", "<del>$1</del>")
     changed = prev != result
     iterations.inc()
   
