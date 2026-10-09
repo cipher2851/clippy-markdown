@@ -122,6 +122,15 @@ proc parse(p: MarkdownParser, text: string): string =
     return "<blockquote class='md-blockquote'>" & p.parse(inner) & "</blockquote>"
   , reMultiline)
 
+  # Reference Link Definitions
+  var refLinks = initOrderedMap[string, string]()
+  result = result.replaceRe(re"^\s*\[([^\]]+)\]: (.*)$", proc(m: Match): string = 
+    let id = m[1].strip()
+    let url = m[2].strip()
+    refLinks[id] = url
+    return ""
+  , reMultiline)
+
   # Footnote Definitions
   result = result.replaceRe(re"^\s*\[\^([^\]]+)\]: (.*)$", "<div class='md-footnote' id='fn-\$1'> <small>\$1: \$2</small> </div>", reMultiline)
 
@@ -171,6 +180,15 @@ proc parse(p: MarkdownParser, text: string): string =
       if m.len > 3 and m[3] != "":
         link = "<a href='" & escapeHtml(m[2]) & "' title='" & escapeHtml(m[3]) & "'>" & m[1] & "</a>"
       return link
+    )
+    # Handle Reference Links: [text][id]
+    result = result.replaceRe(re"\[([^\]]*)\]\[([^\]]*)\]", proc(m: Match): string = 
+      let text = m[1]
+      let id = m[2].strip()
+      if refLinks.contains(id):
+        return "<a href='" & escapeHtml(refLinks[id]) & "'>" & text & "</a>"
+      else:
+        return "[" & text & "][" & id & "]"
     )
     result = result.replaceRe(re"\[\^([^\]]+)\]", "<sup><a href='#fn-\$1'>[\$1]</a></sup>")
     result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
