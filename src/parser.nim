@@ -72,7 +72,7 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(tablePattern, proc(m: Match): string = 
     var tableContent = m[0]
     var lines = tableContent.splitLines()
-    var htmlTable = "<table border='1'>\n"
+    var htmlTable = "<table>\n"
     
     for i, line in lines:
       if line.strip() == "": continue
@@ -83,10 +83,10 @@ proc parse(p: MarkdownParser, text: string): string =
       if cells[0] == "": cells.delete(0)
       if cells.len > 0 and cells[^1] == "": cells.delete(cells.len - 1)
       
-      var rowHtml = "  <tr>"
+      var rowHtml = "  <tr style='border-bottom: 1px solid #ddd;'>"
       for cell in cells:
         let trimmed = cell.strip()
-        rowHtml &= "<" & tag & ">" & escapeHtml(trimmed) & "</" & tag & ">"
+        rowHtml &= "<" & tag & " style='padding: 8px; border: 1px solid #ddd;'>" & escapeHtml(trimmed) & "</" & tag & ">"
       rowHtml &= "</tr>\n"
       htmlTable &= rowHtml
     
@@ -206,7 +206,7 @@ proc parse(p: MarkdownParser, text: string): string =
       flushParagraph()
       processedLines.add("")
     elif trimmed.startsWith("<") && any(trimmed.startsWith(tag) for tag in blockTags):
-      if not trimmed.startsWith("<span"):
+      if not trimmed.startsWith("<span") && not trimmed.startsWith("<code"):
         flushParagraph()
         processedLines.add(line)
       else:
