@@ -191,11 +191,15 @@ proc parse(p: MarkdownParser, text: string): string =
         return "[" & text & "][" & id & "]"
     )
     result = result.replaceRe(re"\[\^([^\]]+)\]", "<sup><a href='#fn-\$1'>[\$1]</a></sup>")
+    
+    # Bold formatting (Strong)
     result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
     result = result.replaceRe(re"__(.*?)__", "<strong>$1</strong>")
+    
+    # Italic formatting (Emphasis)
     result = result.replaceRe(re"\*(.*?)\*", "<em>$1</em>")
-    # Refined underscore italic: only match if it's at a word boundary or start/end of string
     result = result.replaceRe(re"(?<!\w)_(.*?)(?!\w)_", "<em>$1</em>")
+    
     result = result.replaceRe(re"~~(.*?)~~", "<del>$1</del>")
     # Refine single tilde: only match if surrounded by whitespace or at boundaries to avoid accidental matches
     result = result.replaceRe(re"(?<!~)~([^~]+?)~(?<!~)", "<del>$1</del>")
