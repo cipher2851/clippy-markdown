@@ -1,4 +1,5 @@
 import strutils, re
+import std/containers
 
 type
   MarkdownParser = object
