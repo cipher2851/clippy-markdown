@@ -73,7 +73,7 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(tablePattern, proc(m: Match): string = 
     var tableContent = m[0]
     var lines = tableContent.splitLines()
-    var htmlTable = "<table>\n"
+    var htmlTable = "<table style='border-collapse: collapse; width: 100%; margin: 1em 0;'>\n"
     
     for i, line in lines:
       if line.strip() == "": continue
@@ -81,7 +81,7 @@ proc parse(p: MarkdownParser, text: string): string =
       
       let tag = if i == 0: "th" else: "td"
       var cells = line.split('|')
-      if cells[0] == "": cells.delete(0)
+      if cells.len > 0 and cells[0] == "": cells.delete(0)
       if cells.len > 0 and cells[^1] == "": cells.delete(cells.len - 1)
       
       var rowHtml = "  <tr style='border-bottom: 1px solid #ddd;'>"
@@ -156,8 +156,8 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^\s*\d+\.\s+(.*)$", "<li class='ol'>$1</li>", reMultiline)
   
   # Wrap lists - process groups of items
-  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul>\n$1</ul>", reMultiline)
-  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol>\n$1</ol>", reMultiline)
+  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul\n$1</ul>", reMultiline)
+  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol\n$1</ol>", reMultiline)
   
   result = result.replace("<li class='ul'>", "<li>").replace("<li class='ol'>", "<li>")
 
@@ -174,7 +174,7 @@ proc parse(p: MarkdownParser, text: string): string =
       img &= " />"
       return img
     )
-    result = result.replaceRe(re"`(.*?)`", "<code>$1</code>")
+    result = result.replaceRe(re"`(.*?)`", "<code style='background: #f4f4f4; padding: 2px 4px; border-radius: 3px;'>$1</code>")
     # Handle Links: [text](url "title") or [text](url)
     result = result.replaceRe(re"\[([^\]]*)\]\(([^\s\)]+)(?:\s+["'](.*?)["'])?\)", proc(m: Match): string = 
       var link = "<a href='" & escapeHtml(m[2]) & "'>" & m[1] & "</a>"
