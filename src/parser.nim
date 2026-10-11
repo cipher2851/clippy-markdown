@@ -175,13 +175,24 @@ proc parse(p: MarkdownParser, text: string): string =
       return img
     )
     result = result.replaceRe(re"`(.*?)`", "<code style='background: #f4f4f4; padding: 2px 4px; border-radius: 3px;'>$1</code>")
+    
     # Handle Links: [text](url "title") or [text](url)
+    # Includes support for internal links (URLs starting with #)
     result = result.replaceRe(re"\[([^\]]*)\]\(([^\s\)]+)(?:\s+["'](.*?)["'])?\)", proc(m: Match): string = 
-      var link = "<a href='" & escapeHtml(m[2]) & "'>" & m[1] & "</a>"
+      var url = m[2]
+      if url.startsWith("#"):
+        # Internal link
+        url = url
+      else:
+        # External link
+        url = escapeHtml(url)
+      
+      var link = "<a href='" & url & "'>" & m[1] & "</a>"
       if m.len > 3 and m[3] != "":
-        link = "<a href='" & escapeHtml(m[2]) & "' title='" & escapeHtml(m[3]) & "'>" & m[1] & "</a>"
+        link = "<a href='" & url & "' title='" & escapeHtml(m[3]) & "'>" & m[1] & "</a>"
       return link
     )
+    
     # Handle Reference Links: [text][id]
     result = result.replaceRe(re"\[([^\]]*)\]\[([^\]]*)\]", proc(m: Match): string = 
       let text = m[1]
