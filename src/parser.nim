@@ -75,9 +75,26 @@ proc parse(p: MarkdownParser, text: string): string =
     var lines = tableContent.splitLines()
     var htmlTable = "<table style='border-collapse: collapse; width: 100%; margin: 1em 0;'>\n"
     
+    var alignments: seq[string] = @[]
+    
     for i, line in lines:
       if line.strip() == "": continue
-      if i == 1 && line.contains("---"): continue
+      
+      # Handle separator line to determine alignment
+      if i == 1 && line.contains("---"):
+        var cells = line.split('|')
+        if cells.len > 0 and cells[0] == "": cells.delete(0)
+        if cells.len > 0 and cells[^1] == "": cells.delete(cells.len - 1)
+        
+        for cell in cells:
+          let trimmed = cell.strip()
+          if trimmed.startsWith(":") and trimmed.endsWith(":"):
+            alignments.add("center")
+          elif trimmed.endsWith(":"):
+            alignments.add("right")
+          else:
+            alignments.add("left")
+        continue
       
       let tag = if i == 0: "th" else: "td"
       var cells = line.split('|')
@@ -85,9 +102,13 @@ proc parse(p: MarkdownParser, text: string): string =
       if cells.len > 0 and cells[^1] == "": cells.delete(cells.len - 1)
       
       var rowHtml = "  <tr style='border-bottom: 1px solid #ddd;'>"
-      for cell in cells:
+      for idx, cell in cells:
         let trimmed = cell.strip()
-        rowHtml &= "<" & tag & " style='padding: 8px; border: 1px solid #ddd;'>" & escapeHtml(trimmed) & "</" & tag & ">"
+        var style = "padding: 8px; border: 1px solid #ddd;"
+        if idx < alignments.len:
+          style &= " text-align: " & alignments[idx] & ";"
+        
+        rowHtml &= "<" & tag & " style='" & style & "'>" & escapeHtml(trimmed) & "</" & tag & ">
       rowHtml &= "</tr>\n"
       htmlTable &= rowHtml
     
