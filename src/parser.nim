@@ -233,9 +233,9 @@ proc parse(p: MarkdownParser, text: string): string =
     result = result.replaceRe(re"\*(.*?)\*", "<em>$1</em>")
     result = result.replaceRe(re"(?<!\w)_(.*?)(?!\w)_", "<em>$1</em>")
     
+    # Strikethrough
     result = result.replaceRe(re"~~(.*?)~~", "<del>$1</del>")
-    # Refine single tilde: only match if surrounded by whitespace or at boundaries to avoid accidental matches
-    result = result.replaceRe(re"(?<!~)~([^~]+?)~(?<!~)", "<del>$1</del>")
+    
     changed = prev != result
     iterations.inc()
   
