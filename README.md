@@ -34,3 +34,11 @@ nim c -r src/main.nim input.md > output.html
 ## Plugins
 
 Plugins are procedures that receive the rendered HTML string and return a modified string. See `src/main.nim` for an example that highlights `TODO:` markers.
+
+## Development
+
+Run the parser tests with:
+
+```bash
+nim c -r --path:src tests/test_parser.nim
+```

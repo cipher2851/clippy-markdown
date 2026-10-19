@@ -1,16 +1,16 @@
 import strutils, re, tables
 
 type
-  MarkdownParser = object
+  MarkdownParser* = object
     plugins: seq[proc(s: string): string]
 
-proc newParser(): MarkdownParser =
+proc newParser*(): MarkdownParser =
   return MarkdownParser(plugins: @[])
 
-proc addPlugin(p: var MarkdownParser, plugin: proc(s: string): string) =
+proc addPlugin*(p: var MarkdownParser, plugin: proc(s: string): string) =
   p.plugins.add(plugin)
 
-proc escapeHtml(s: string): string =
+proc escapeHtml*(s: string): string =
   result = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
 
 proc slugify(s: string): string =
@@ -20,9 +20,31 @@ proc slugify(s: string): string =
   result = result.replaceRe(re"\s+", "-")
   result = result.strip(chars = {'-': true})
 
-proc parse(p: MarkdownParser, text: string): string =
+proc isBlockTag(trimmed: string): bool =
+  if not trimmed.startsWith("<"):
+    return false
+
+  var i = 1
+  if trimmed.len > 2 and trimmed[1] == '/':
+    i = 2
+
+  var j = i
+  while j < trimmed.len and (trimmed[j] in {'a'..'z', 'A'..'Z', '0'..'9'}):
+    inc j
+
+  if j == i:
+    return false
+
+  let name = toLowerAscii(trimmed[i..<j])
+  case name
+  of "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "ul", "ol", "table", "thead", "tbody", "tfoot", "tr", "th", "td", "pre", "hr", "div", "p", "section", "article", "header", "footer", "li", "canvas", "svg", "iframe":
+    return true
+  else:
+    return false
+
+proc parse*(p: MarkdownParser, text: string): string =
   var result = text
-  
+
   # Handle Escaped Characters
   let escMap = {
     "\\*": "__ESC_AST__",
@@ -34,22 +56,25 @@ proc parse(p: MarkdownParser, text: string): string =
     "\\]": "__ESC_RBRK__",
     "\\(": "__ESC_LPAR__",
     "\\)": "__ESC_RPAR__",
-    "\\\": "__ESC_BSLASH__"
+    "\\\\": "__ESC_BSLASH__"
   }
-  
+
   for esc, placeholder in escMap.pairs:
     result = result.replace(esc, placeholder)
 
   # HTML Comments
   result = result.replaceRe(re"<!--.*?-->", "", reDotAll)
 
-  # Fenced Code Blocks
-  result = result.replaceRe(re"```(.*?)```", proc(m: RegexMatch): string = 
+  # Fenced Code Blocks (with an optional info string)
+  result = result.replaceRe(re"```[^\n]*\n(.*?)```", proc(m: RegexMatch): string =
+    return "<pre><code style='white-space: pre-wrap;'>" & escapeHtml(m[1]) & "</code></pre>"
+  , reDotAll)
+  result = result.replaceRe(re"```(.*?)```", proc(m: RegexMatch): string =
     return "<pre><code style='white-space: pre-wrap;'>" & escapeHtml(m[1]) & "</code></pre>"
   , reDotAll)
 
   # Indented Code Blocks
-  result = result.replaceRe(re"((?:^\s{4}.*\n?)+)", proc(m: RegexMatch): string = 
+  result = result.replaceRe(re"((?:^\s{4}.*\n?)+)", proc(m: RegexMatch): string =
     var content = m[0]
     var lines = content.splitLines()
     var processedLines: seq[string] = @[]
@@ -69,22 +94,22 @@ proc parse(p: MarkdownParser, text: string): string =
 
   # Tables
   let tablePattern = re"((?:^\s*\|[^\n]*\|\s*\n(?:^\s*\|[- :|]*\s*\|\s*\n)(?:^\s*\|[^\n]*\|\s*\n)*))"
-  result = result.replaceRe(tablePattern, proc(m: RegexMatch): string = 
+  result = result.replaceRe(tablePattern, proc(m: RegexMatch): string =
     var tableContent = m[0]
     var lines = tableContent.splitLines()
     var htmlTable = "<table style='border-collapse: collapse; width: 100%; margin: 1em 0;'>\n"
-    
+
     var alignments: seq[string] = @[]
-    
+
     for i, line in lines:
       if line.strip() == "": continue
-      
+
       # Handle separator line to determine alignment
       if i == 1 && line.contains("---"):
         var cells = line.split('|')
         if cells.len > 0 and cells[0] == "": cells.delete(0)
         if cells.len > 0 and cells[^1] == "": cells.delete(cells.len - 1)
-        
+
         for cell in cells:
           let trimmed = cell.strip()
           if trimmed.startsWith(":") and trimmed.endsWith(":"):
@@ -94,40 +119,40 @@ proc parse(p: MarkdownParser, text: string): string =
           else:
             alignments.add("left")
         continue
-      
+
       let tag = if i == 0: "th" else: "td"
       var cells = line.split('|')
       if cells.len > 0 and cells[0] == "": cells.delete(0)
       if cells.len > 0 and cells[^1] == "": cells.delete(cells.len - 1)
-      
+
       var rowHtml = "  <tr style='border-bottom: 1px solid #ddd;'>"
       for idx, cell in cells:
         let trimmed = cell.strip()
         var style = "padding: 8px; border: 1px solid #ddd;"
         if idx < alignments.len:
           style &= " text-align: " & alignments[idx] & ";"
-        
+
         rowHtml &= "<" & tag & " style='" & style & "'>" & escapeHtml(trimmed) & "</" & tag & ">"
       rowHtml &= "</tr>\n"
       htmlTable &= rowHtml
-    
+
     htmlTable &= "</table>"
     return htmlTable
   , reMultiline)
 
   # Headers with IDs
-  result = result.replaceRe(re"^# (.*)$", proc(m: RegexMatch): string = 
-    return "<h1 id='" & slugify(m[1]) & "'>" & m[1] & "</h1>"
+  result = result.replaceRe(re"^# (.*)$", proc(m: RegexMatch): string =
+    return "<h1 id='" & slugify(m[1]) & "'>" & escapeHtml(m[1]) & "</h1>"
   , reMultiline)
-  result = result.replaceRe(re"^## (.*)$", proc(m: RegexMatch): string = 
-    return "<h2 id='" & slugify(m[1]) & "'>" & m[1] & "</h2>"
+  result = result.replaceRe(re"^## (.*)$", proc(m: RegexMatch): string =
+    return "<h2 id='" & slugify(m[1]) & "'>" & escapeHtml(m[1]) & "</h2>"
   , reMultiline)
-  result = result.replaceRe(re"^### (.*)$", proc(m: RegexMatch): string = 
-    return "<h3 id='" & slugify(m[1]) & "'>" & m[1] & "</h3>"
+  result = result.replaceRe(re"^### (.*)$", proc(m: RegexMatch): string =
+    return "<h3 id='" & slugify(m[1]) & "'>" & escapeHtml(m[1]) & "</h3>"
   , reMultiline)
-  
+
   # Blockquotes
-  result = result.replaceRe(re"((?:^>\s*.*\n?)+)", proc(m: RegexMatch): string = 
+  result = result.replaceRe(re"((?:^>\s*.*\n?)+)", proc(m: RegexMatch): string =
     var content = m[0]
     var lines = content.splitLines()
     var processedLines: seq[string] = @[]
@@ -145,7 +170,7 @@ proc parse(p: MarkdownParser, text: string): string =
 
   # Reference Link Definitions
   var refLinks = initOrderedTable[string, string]()
-  result = result.replaceRe(re"^\s*\[([^\]]+)\]: (.*)$", proc(m: RegexMatch): string = 
+  result = result.replaceRe(re"^\s*\[([^\]]+)\]: (.*)$", proc(m: RegexMatch): string =
     let id = m[1].strip()
     let url = m[2].strip()
     refLinks[id] = url
@@ -153,32 +178,38 @@ proc parse(p: MarkdownParser, text: string): string =
   , reMultiline)
 
   # Footnote Definitions
-  result = result.replaceRe(re"^\s*\[\^([^\]]+)\]: (.*)$", "<div class='md-footnote' id='fn-\$1'> <small>\$1: \$2</small> </div>", reMultiline)
+  result = result.replaceRe(re"^\s*\[\^([^\]]+)\]: (.*)$", proc(m: RegexMatch): string =
+    return "<div class='md-footnote' id='fn-" & escapeHtml(m[1]) & "'> <small>" & escapeHtml(m[1]) & ": " & escapeHtml(m[2]) & "</small> </div>"
+  , reMultiline)
 
   # Task lists
-  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[\s\]\s+(.*)$", proc(m: RegexMatch): string = 
+  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[\s\]\s+(.*)$", proc(m: RegexMatch): string =
     let prefix = m[1]
     let content = m[2]
     let cls = if prefix.contains(".") then "ol" else "ul"
-    return "<li class='" & cls & "'> <input type='checkbox' disabled /> " & content & "</li>"
+    return "<li class='" & cls & "'> <input type='checkbox' disabled /> " & escapeHtml(content) & "</li>"
   , reMultiline)
-  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[x\]\s+(.*)$", proc(m: RegexMatch): string = 
+  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[x\]\s+(.*)$", proc(m: RegexMatch): string =
     let prefix = m[1]
     let content = m[2]
     let cls = if prefix.contains(".") then "ol" else "ul"
-    return "<li class='" & cls & "'> <input type='checkbox' checked disabled /> " & content & "</li>"
+    return "<li class='" & cls & "'> <input type='checkbox' checked disabled /> " & escapeHtml(content) & "</li>"
   , reMultiline)
 
   # Unordered Lists
-  result = result.replaceRe(re"^\s*[\*\-] (.*)$", "<li class='ul'>$1</li>", reMultiline)
+  result = result.replaceRe(re"^\s*[\*\-] (.*)$", proc(m: RegexMatch): string =
+    return "<li class='ul'>" & escapeHtml(m[1]) & "</li>"
+  , reMultiline)
 
   # Ordered Lists
-  result = result.replaceRe(re"^\s*\d+\.\s+(.*)$", "<li class='ol'>$1</li>", reMultiline)
-  
+  result = result.replaceRe(re"^\s*\d+\.\s+(.*)$", proc(m: RegexMatch): string =
+    return "<li class='ol'>" & escapeHtml(m[1]) & "</li>"
+  , reMultiline)
+
   # Wrap lists - process groups of items
   result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul\n$1</ul>", reMultiline)
   result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol\n$1</ol>", reMultiline)
-  
+
   result = result.replace("<li class='ul'>", "<li>").replace("<li class='ol'>", "<li>")
 
   # Inline formatting - Applied multiple times to allow nesting (e.g. bold inside italic)
@@ -187,69 +218,70 @@ proc parse(p: MarkdownParser, text: string): string =
   while changed and iterations < 3:
     let prev = result
     # Handle Images: ![alt](url "title") or ![alt](url)
-    result = result.replaceRe(re"!\[([^\]]*)\]\(([^\s\)]+)(?:\s+["'](.*?)["'])?\)", proc(m: RegexMatch): string = 
+    result = result.replaceRe(re"!\[([^\]]*)\]\(([^\s\)]+)(?:\s+[\"'](.*?)[\"'])?\)", proc(m: RegexMatch): string =
       var img = "<img src='" & escapeHtml(m[2]) & "' alt='" & escapeHtml(m[1]) & "'"
       if m.len > 3 and m[3] != "":
         img &= " title='" & escapeHtml(m[3]) & "'"
       img &= " />"
       return img
     )
-    result = result.replaceRe(re"`(.*?)`", "<code style='background: #f4f4f4; padding: 2px 4px; border-radius: 3px;'>$1</code>")
-    
+    result = result.replaceRe(re"`(.*?)`", proc(m: RegexMatch): string =
+      return "<code style='background: #f4f4f4; padding: 2px 4px; border-radius: 3px;'>" & escapeHtml(m[1]) & "</code>"
+    )
+
     # Handle Links: [text](url "title") or [text](url)
     # Includes support for internal links (URLs starting with #)
-    result = result.replaceRe(re"\[([^\]]*)\]\(([^\s\)]+)(?:\s+["'](.*?)["'])?\)", proc(m: RegexMatch): string = 
-      var url = m[2]
-      if url.startsWith("#"):
-        # Internal link
-        url = url
-      else:
-        # External link
-        url = escapeHtml(url)
-      
-      var link = "<a href='" & url & "'>" & m[1] & "</a>"
+    result = result.replaceRe(re"\[([^\]]*)\]\(([^\s\)]+)(?:\s+[\"'](.*?)[\"'])?\)", proc(m: RegexMatch): string =
+      var url = escapeHtml(m[2])
+
+      var link = "<a href='" & url & "'>" & escapeHtml(m[1]) & "</a>"
       if m.len > 3 and m[3] != "":
-        link = "<a href='" & url & "' title='" & escapeHtml(m[3]) & "'>" & m[1] & "</a>"
+        link = "<a href='" & url & "' title='" & escapeHtml(m[3]) & "'>" & escapeHtml(m[1]) & "</a>"
       return link
     )
-    
+
     # Handle Reference Links: [text][id]
-    result = result.replaceRe(re"\[([^\]]*)\]\[([^\]]*)\]", proc(m: RegexMatch): string = 
+    result = result.replaceRe(re"\[([^\]]*)\]\[([^\]]*)\]", proc(m: RegexMatch): string =
       let text = m[1]
       let id = m[2].strip()
       if refLinks.contains(id):
-        return "<a href='" & escapeHtml(refLinks[id]) & "'>" & text & "</a>"
+        return "<a href='" & escapeHtml(refLinks[id]) & "'>" & escapeHtml(text) & "</a>"
       else:
-        return "[" & text & "][" & id & "]"
+        return "[" & escapeHtml(text) & "][" & escapeHtml(id) & "]"
     )
     result = result.replaceRe(re"\[\^([^\]]+)\]", "<sup><a href='#fn-\$1'>[\$1]</a></sup>")
-    
+
     # Bold formatting (Strong)
     result = result.replaceRe(re"\*\*(.*?)\*\*", "<strong>$1</strong>")
     result = result.replaceRe(re"__(.*?)__", "<strong>$1</strong>")
-    
+
     # Italic formatting (Emphasis)
     result = result.replaceRe(re"\*(.*?)\*", "<em>$1</em>")
     result = result.replaceRe(re"(?<!\w)_(.*?)(?!\w)_", "<em>$1</em>")
-    
+
     # Strikethrough
     result = result.replaceRe(re"~~(.*?)~~", "<del>$1</del>")
-    
+
     changed = prev != result
     iterations.inc()
-  
+
   # Math blocks
-  result = result.replaceRe(re"\$\$(.*?)\$\$", "<div class='math-display'>$1</div>", reDotAll)
-  result = result.replaceRe(re"\$([^$]+?)\$", "<span class='math-inline'>$1</span>")
-  
+  result = result.replaceRe(re"\$\$(.*?)\$\$", proc(m: RegexMatch): string =
+    return "<div class='math-display'>" & escapeHtml(m[1]) & "</div>"
+  , reDotAll)
+  result = result.replaceRe(re"\$([^$]+?)\$", proc(m: RegexMatch): string =
+    return "<span class='math-inline'>" & escapeHtml(m[1]) & "</span>"
+  )
+
   # Paragraphs
   var lines = result.splitLines()
   var processedLines: seq[string] = @[]
   let blockTags = {"<h1", "<h2", "<h3", "<blockquote", "<ul", "<ol", "<table", "<pre", "<hr", "<div", "<p", "<section", "<article", "<header", "<footer", "<li", "<canvas", "<svg", "<iframe"}
-  
+
   var currentParagraph = ""
-  
-  proc flushParagraph() = 
+  var inPre = false
+
+  proc flushParagraph() =
     let trimmed = currentParagraph.strip()
     if trimmed != "":
       processedLines.add("<p>" & trimmed & "</p>")
@@ -257,12 +289,14 @@ proc parse(p: MarkdownParser, text: string): string =
 
   for line in lines:
     let trimmed = line.strip()
-    var isBlockTag = false
-    if trimmed.startsWith("<"):
-      for tag in blockTags:
-        if trimmed.startsWith(tag):
-          isBlockTag = true
-          break
+    var isBlockTag = isBlockTag(trimmed) or inPre
+
+    if trimmed.contains("<pre"):
+      inPre = true
+      isBlockTag = true
+    if trimmed.contains("</pre>"):
+      inPre = false
+
     if trimmed == "":
       flushParagraph()
       processedLines.add("")
@@ -285,5 +319,5 @@ proc parse(p: MarkdownParser, text: string): string =
   # Run custom plugins
   for plugin in p.plugins:
     result = plugin(result)
-    
+
   return result
