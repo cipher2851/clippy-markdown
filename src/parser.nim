@@ -1,5 +1,4 @@
-import strutils, re
-import std/containers
+import strutils, re, tables
 
 type
   MarkdownParser = object
@@ -45,12 +44,12 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"<!--.*?-->", "", reDotAll)
 
   # Fenced Code Blocks
-  result = result.replaceRe(re"```(.*?)```", proc(m: Match): string = 
+  result = result.replaceRe(re"```(.*?)```", proc(m: RegexMatch): string = 
     return "<pre><code style='white-space: pre-wrap;'>" & escapeHtml(m[1]) & "</code></pre>"
   , reDotAll)
 
   # Indented Code Blocks
-  result = result.replaceRe(re"((?:^\s{4}.*\n?)+)", proc(m: Match): string = 
+  result = result.replaceRe(re"((?:^\s{4}.*\n?)+)", proc(m: RegexMatch): string = 
     var content = m[0]
     var lines = content.splitLines()
     var processedLines: seq[string] = @[]
@@ -70,7 +69,7 @@ proc parse(p: MarkdownParser, text: string): string =
 
   # Tables
   let tablePattern = re"((?:^\s*\|[^\n]*\|\s*\n(?:^\s*\|[- :|]*\s*\|\s*\n)(?:^\s*\|[^\n]*\|\s*\n)*))"
-  result = result.replaceRe(tablePattern, proc(m: Match): string = 
+  result = result.replaceRe(tablePattern, proc(m: RegexMatch): string = 
     var tableContent = m[0]
     var lines = tableContent.splitLines()
     var htmlTable = "<table style='border-collapse: collapse; width: 100%; margin: 1em 0;'>\n"
@@ -108,7 +107,7 @@ proc parse(p: MarkdownParser, text: string): string =
         if idx < alignments.len:
           style &= " text-align: " & alignments[idx] & ";"
         
-        rowHtml &= "<" & tag & " style='" & style & "'>" & escapeHtml(trimmed) & "</" & tag & ">
+        rowHtml &= "<" & tag & " style='" & style & "'>" & escapeHtml(trimmed) & "</" & tag & ">"
       rowHtml &= "</tr>\n"
       htmlTable &= rowHtml
     
@@ -117,18 +116,18 @@ proc parse(p: MarkdownParser, text: string): string =
   , reMultiline)
 
   # Headers with IDs
-  result = result.replaceRe(re"^# (.*)$", proc(m: Match): string = 
+  result = result.replaceRe(re"^# (.*)$", proc(m: RegexMatch): string = 
     return "<h1 id='" & slugify(m[1]) & "'>" & m[1] & "</h1>"
   , reMultiline)
-  result = result.replaceRe(re"^## (.*)$", proc(m: Match): string = 
+  result = result.replaceRe(re"^## (.*)$", proc(m: RegexMatch): string = 
     return "<h2 id='" & slugify(m[1]) & "'>" & m[1] & "</h2>"
   , reMultiline)
-  result = result.replaceRe(re"^### (.*)$", proc(m: Match): string = 
+  result = result.replaceRe(re"^### (.*)$", proc(m: RegexMatch): string = 
     return "<h3 id='" & slugify(m[1]) & "'>" & m[1] & "</h3>"
   , reMultiline)
   
   # Blockquotes
-  result = result.replaceRe(re"((?:^>\s*.*\n?)+)", proc(m: Match): string = 
+  result = result.replaceRe(re"((?:^>\s*.*\n?)+)", proc(m: RegexMatch): string = 
     var content = m[0]
     var lines = content.splitLines()
     var processedLines: seq[string] = @[]
@@ -145,8 +144,8 @@ proc parse(p: MarkdownParser, text: string): string =
   , reMultiline)
 
   # Reference Link Definitions
-  var refLinks = initOrderedMap[string, string]()
-  result = result.replaceRe(re"^\s*\[([^\]]+)\]: (.*)$", proc(m: Match): string = 
+  var refLinks = initOrderedTable[string, string]()
+  result = result.replaceRe(re"^\s*\[([^\]]+)\]: (.*)$", proc(m: RegexMatch): string = 
     let id = m[1].strip()
     let url = m[2].strip()
     refLinks[id] = url
@@ -157,13 +156,13 @@ proc parse(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^\s*\[\^([^\]]+)\]: (.*)$", "<div class='md-footnote' id='fn-\$1'> <small>\$1: \$2</small> </div>", reMultiline)
 
   # Task lists
-  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[\s\]\s+(.*)$", proc(m: Match): string = 
+  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[\s\]\s+(.*)$", proc(m: RegexMatch): string = 
     let prefix = m[1]
     let content = m[2]
     let cls = if prefix.contains(".") then "ol" else "ul"
     return "<li class='" & cls & "'> <input type='checkbox' disabled /> " & content & "</li>"
   , reMultiline)
-  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[x\]\s+(.*)$", proc(m: Match): string = 
+  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[x\]\s+(.*)$", proc(m: RegexMatch): string = 
     let prefix = m[1]
     let content = m[2]
     let cls = if prefix.contains(".") then "ol" else "ul"
@@ -188,7 +187,7 @@ proc parse(p: MarkdownParser, text: string): string =
   while changed and iterations < 3:
     let prev = result
     # Handle Images: ![alt](url "title") or ![alt](url)
-    result = result.replaceRe(re"!\[([^\]]*)\]\(([^\s\)]+)(?:\s+["'](.*?)["'])?\)", proc(m: Match): string = 
+    result = result.replaceRe(re"!\[([^\]]*)\]\(([^\s\)]+)(?:\s+["'](.*?)["'])?\)", proc(m: RegexMatch): string = 
       var img = "<img src='" & escapeHtml(m[2]) & "' alt='" & escapeHtml(m[1]) & "'"
       if m.len > 3 and m[3] != "":
         img &= " title='" & escapeHtml(m[3]) & "'"
@@ -199,7 +198,7 @@ proc parse(p: MarkdownParser, text: string): string =
     
     # Handle Links: [text](url "title") or [text](url)
     # Includes support for internal links (URLs starting with #)
-    result = result.replaceRe(re"\[([^\]]*)\]\(([^\s\)]+)(?:\s+["'](.*?)["'])?\)", proc(m: Match): string = 
+    result = result.replaceRe(re"\[([^\]]*)\]\(([^\s\)]+)(?:\s+["'](.*?)["'])?\)", proc(m: RegexMatch): string = 
       var url = m[2]
       if url.startsWith("#"):
         # Internal link
@@ -215,7 +214,7 @@ proc parse(p: MarkdownParser, text: string): string =
     )
     
     # Handle Reference Links: [text][id]
-    result = result.replaceRe(re"\[([^\]]*)\]\[([^\]]*)\]", proc(m: Match): string = 
+    result = result.replaceRe(re"\[([^\]]*)\]\[([^\]]*)\]", proc(m: RegexMatch): string = 
       let text = m[1]
       let id = m[2].strip()
       if refLinks.contains(id):
@@ -258,10 +257,16 @@ proc parse(p: MarkdownParser, text: string): string =
 
   for line in lines:
     let trimmed = line.strip()
+    var isBlockTag = false
+    if trimmed.startsWith("<"):
+      for tag in blockTags:
+        if trimmed.startsWith(tag):
+          isBlockTag = true
+          break
     if trimmed == "":
       flushParagraph()
       processedLines.add("")
-    elif trimmed.startsWith("<") && any(trimmed.startsWith(tag) for tag in blockTags):
+    elif isBlockTag:
       flushParagraph()
       processedLines.add(line)
     else:
