@@ -42,35 +42,18 @@ proc isBlockTag(trimmed: string): bool =
   else:
     return false
 
-proc parse*(p: MarkdownParser, text: string): string =
+proc parseImpl(p: MarkdownParser, text: string): string =
   var result = text
-
-  # Handle Escaped Characters
-  let escMap = {
-    "\\*": "__ESC_AST__",
-    "\\_": "__ESC_UND__",
-    "\\#": "__ESC_HASH__",
-    "\\`": "__ESC_TICK__",
-    "\\~": "__ESC_TILD__",
-    "\\[": "__ESC_LBRK__",
-    "\\]": "__ESC_RBRK__",
-    "\\(": "__ESC_LPAR__",
-    "\\)": "__ESC_RPAR__",
-    "\\\\": "__ESC_BSLASH__"
-  }
-
-  for esc, placeholder in escMap.pairs:
-    result = result.replace(esc, placeholder)
 
   # HTML Comments
   result = result.replaceRe(re"<!--.*?-->", "", reDotAll)
 
   # Fenced Code Blocks (with an optional info string)
   result = result.replaceRe(re"```[^\n]*\n(.*?)```", proc(m: RegexMatch): string =
-    return "<pre><code style='white-space: pre-wrap;'>" & escapeHtml(m[1]) & "</code></pre>"
+    return "<pre><code style='white-space: pre-wrap;'>" & m[1] & "</code></pre>"
   , reDotAll)
   result = result.replaceRe(re"```(.*?)```", proc(m: RegexMatch): string =
-    return "<pre><code style='white-space: pre-wrap;'>" & escapeHtml(m[1]) & "</code></pre>"
+    return "<pre><code style='white-space: pre-wrap;'>" & m[1] & "</code></pre>"
   , reDotAll)
 
   # Indented Code Blocks
@@ -80,11 +63,11 @@ proc parse*(p: MarkdownParser, text: string): string =
     var processedLines: seq[string] = @[]
     for line in lines:
       if line.startsWith("    "):
-        processedLines.add(escapeHtml(line[4..^1]))
+        processedLines.add(line[4..^1])
       elif line.startsWith("\t"):
-        processedLines.add(escapeHtml(line[1..^1]))
+        processedLines.add(line[1..^1])
       else:
-        processedLines.add(escapeHtml(line))
+        processedLines.add(line)
     return "<pre><code style='white-space: pre-wrap;'>" & processedLines.join("\n") & "</code></pre>"
   , reMultiline)
 
@@ -105,7 +88,7 @@ proc parse*(p: MarkdownParser, text: string): string =
       if line.strip() == "": continue
 
       # Handle separator line to determine alignment
-      if i == 1 && line.contains("---"):
+      if i == 1 and line.contains("---"):
         var cells = line.split('|')
         if cells.len > 0 and cells[0] == "": cells.delete(0)
         if cells.len > 0 and cells[^1] == "": cells.delete(cells.len - 1)
@@ -132,7 +115,7 @@ proc parse*(p: MarkdownParser, text: string): string =
         if idx < alignments.len:
           style &= " text-align: " & alignments[idx] & ";"
 
-        rowHtml &= "<" & tag & " style='" & style & "'>" & escapeHtml(trimmed) & "</" & tag & ">"
+        rowHtml &= "<" & tag & " style='" & style & "'>" & trimmed & "</" & tag & ">"
       rowHtml &= "</tr>\n"
       htmlTable &= rowHtml
 
@@ -142,13 +125,13 @@ proc parse*(p: MarkdownParser, text: string): string =
 
   # Headers with IDs
   result = result.replaceRe(re"^# (.*)$", proc(m: RegexMatch): string =
-    return "<h1 id='" & slugify(m[1]) & "'>" & escapeHtml(m[1]) & "</h1>"
+    return "<h1 id='" & slugify(m[1]) & "'>" & m[1] & "</h1>"
   , reMultiline)
   result = result.replaceRe(re"^## (.*)$", proc(m: RegexMatch): string =
-    return "<h2 id='" & slugify(m[1]) & "'>" & escapeHtml(m[1]) & "</h2>"
+    return "<h2 id='" & slugify(m[1]) & "'>" & m[1] & "</h2>"
   , reMultiline)
   result = result.replaceRe(re"^### (.*)$", proc(m: RegexMatch): string =
-    return "<h3 id='" & slugify(m[1]) & "'>" & escapeHtml(m[1]) & "</h3>"
+    return "<h3 id='" & slugify(m[1]) & "'>" & m[1] & "</h3>"
   , reMultiline)
 
   # Blockquotes
@@ -165,7 +148,7 @@ proc parse*(p: MarkdownParser, text: string): string =
       else:
         processedLines.add(line)
     let inner = processedLines.join("\n")
-    return "<blockquote class='md-blockquote'>" & p.parse(inner) & "</blockquote>"
+    return "<blockquote class='md-blockquote'>" & p.parseImpl(inner) & "</blockquote>"
   , reMultiline)
 
   # Reference Link Definitions
@@ -179,7 +162,7 @@ proc parse*(p: MarkdownParser, text: string): string =
 
   # Footnote Definitions
   result = result.replaceRe(re"^\s*\[\^([^\]]+)\]: (.*)$", proc(m: RegexMatch): string =
-    return "<div class='md-footnote' id='fn-" & escapeHtml(m[1]) & "'> <small>" & escapeHtml(m[1]) & ": " & escapeHtml(m[2]) & "</small> </div>"
+    return "<div class='md-footnote' id='fn-" & m[1] & "'> <small>" & m[1] & ": " & m[2] & "</small> </div>"
   , reMultiline)
 
   # Task lists
@@ -187,23 +170,23 @@ proc parse*(p: MarkdownParser, text: string): string =
     let prefix = m[1]
     let content = m[2]
     let cls = if prefix.contains(".") then "ol" else "ul"
-    return "<li class='" & cls & "'> <input type='checkbox' disabled /> " & escapeHtml(content) & "</li>"
+    return "<li class='" & cls & "'> <input type='checkbox' disabled /> " & content & "</li>"
   , reMultiline)
   result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[x\]\s+(.*)$", proc(m: RegexMatch): string =
     let prefix = m[1]
     let content = m[2]
     let cls = if prefix.contains(".") then "ol" else "ul"
-    return "<li class='" & cls & "'> <input type='checkbox' checked disabled /> " & escapeHtml(content) & "</li>"
+    return "<li class='" & cls & "'> <input type='checkbox' checked disabled /> " & content & "</li>"
   , reMultiline)
 
   # Unordered Lists
   result = result.replaceRe(re"^\s*[\*\-] (.*)$", proc(m: RegexMatch): string =
-    return "<li class='ul'>" & escapeHtml(m[1]) & "</li>"
+    return "<li class='ul'>" & m[1] & "</li>"
   , reMultiline)
 
   # Ordered Lists
   result = result.replaceRe(re"^\s*\d+\.\s+(.*)$", proc(m: RegexMatch): string =
-    return "<li class='ol'>" & escapeHtml(m[1]) & "</li>"
+    return "<li class='ol'>" & m[1] & "</li>"
   , reMultiline)
 
   # Wrap lists - process groups of items without merging across blank lines
@@ -219,24 +202,24 @@ proc parse*(p: MarkdownParser, text: string): string =
     let prev = result
     # Handle Images: ![alt](url "title") or ![alt](url)
     result = result.replaceRe(re"!\[([^\]]*)\]\(([^\s\)]+)(?:\s+[\"'](.*?)[\"'])?\)", proc(m: RegexMatch): string =
-      var img = "<img src='" & escapeHtml(m[2]) & "' alt='" & escapeHtml(m[1]) & "'"
+      var img = "<img src='" & m[2] & "' alt='" & m[1] & "'"
       if m.len > 3 and m[3] != "":
-        img &= " title='" & escapeHtml(m[3]) & "'"
+        img &= " title='" & m[3] & "'"
       img &= " />"
       return img
     )
     result = result.replaceRe(re"`(.*?)`", proc(m: RegexMatch): string =
-      return "<code style='background: #f4f4f4; padding: 2px 4px; border-radius: 3px;'>" & escapeHtml(m[1]) & "</code>"
+      return "<code style='background: #f4f4f4; padding: 2px 4px; border-radius: 3px;'>" & m[1] & "</code>"
     )
 
     # Handle Links: [text](url "title") or [text](url)
     # Includes support for internal links (URLs starting with #)
     result = result.replaceRe(re"\[([^\]]*)\]\(([^\s\)]+)(?:\s+[\"'](.*?)[\"'])?\)", proc(m: RegexMatch): string =
-      var url = escapeHtml(m[2])
+      var url = m[2]
 
-      var link = "<a href='" & url & "'>" & escapeHtml(m[1]) & "</a>"
+      var link = "<a href='" & url & "'>" & m[1] & "</a>"
       if m.len > 3 and m[3] != "":
-        link = "<a href='" & url & "' title='" & escapeHtml(m[3]) & "'>" & escapeHtml(m[1]) & "</a>"
+        link = "<a href='" & url & "' title='" & m[3] & "'>" & m[1] & "</a>"
       return link
     )
 
@@ -247,9 +230,9 @@ proc parse*(p: MarkdownParser, text: string): string =
       if id == "":
         id = text.strip()
       if refLinks.contains(id):
-        return "<a href='" & escapeHtml(refLinks[id]) & "'>" & escapeHtml(text) & "</a>"
+        return "<a href='" & refLinks[id] & "'>" & text & "</a>"
       else:
-        return "[" & escapeHtml(text) & "][" & escapeHtml(id) & "]"
+        return "[" & text & "][" & id & "]"
     )
     result = result.replaceRe(re"\[\^([^\]]+)\]", "<sup><a href='#fn-\$1'>[\$1]</a></sup>")
 
@@ -269,10 +252,10 @@ proc parse*(p: MarkdownParser, text: string): string =
 
   # Math blocks
   result = result.replaceRe(re"\$\$(.*?)\$\$", proc(m: RegexMatch): string =
-    return "<div class='math-display'>" & escapeHtml(m[1]) & "</div>"
+    return "<div class='math-display'>" & m[1] & "</div>"
   , reDotAll)
   result = result.replaceRe(re"\$([^$]+?)\$", proc(m: RegexMatch): string =
-    return "<span class='math-inline'>" & escapeHtml(m[1]) & "</span>"
+    return "<span class='math-inline'>" & m[1] & "</span>"
   )
 
   # Paragraphs
@@ -312,6 +295,30 @@ proc parse*(p: MarkdownParser, text: string): string =
 
   flushParagraph()
   result = processedLines.join("\n")
+
+  return result
+
+proc parse*(p: MarkdownParser, text: string): string =
+  var result = escapeHtml(text)
+
+  # Handle Escaped Characters
+  let escMap = {
+    "\\*": "__ESC_AST__",
+    "\\_": "__ESC_UND__",
+    "\\#": "__ESC_HASH__",
+    "\\`": "__ESC_TICK__",
+    "\\~": "__ESC_TILD__",
+    "\\[": "__ESC_LBRK__",
+    "\\]": "__ESC_RBRK__",
+    "\\(": "__ESC_LPAR__",
+    "\\)": "__ESC_RPAR__",
+    "\\\\": "__ESC_BSLASH__"
+  }
+
+  for esc, placeholder in escMap.pairs:
+    result = result.replace(esc, placeholder)
+
+  result = p.parseImpl(result)
 
   # Restore Escaped Characters
   for esc, placeholder in escMap.pairs:
