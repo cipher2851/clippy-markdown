@@ -44,3 +44,14 @@ suite "clippy markdown parser":
     var p = newParser()
     p.addPlugin(proc(s: string): string = s.replace("TODO:", "DONE:"))
     check p.parse("TODO:") == "<p>DONE:</p>"
+
+  test "separate lists are not merged":
+    let p = newParser()
+    let html = p.parse("* a\n\n* b")
+    check html.contains("<ul\n<li>a</li>\n</ul>")
+    check html.contains("<ul\n<li>b</li></ul>")
+
+  test "shorthand reference link":
+    let p = newParser()
+    let html = p.parse("[x][]\n\n[x]: /url")
+    check html.contains("<a href='/url'>x</a>")

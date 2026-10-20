@@ -206,9 +206,9 @@ proc parse*(p: MarkdownParser, text: string): string =
     return "<li class='ol'>" & escapeHtml(m[1]) & "</li>"
   , reMultiline)
 
-  # Wrap lists - process groups of items
-  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>\s*)+)", "<ul\n$1</ul>", reMultiline)
-  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>\s*)+)", "<ol\n$1</ol>", reMultiline)
+  # Wrap lists - process groups of items without merging across blank lines
+  result = result.replaceRe(re"((?:<li class='ul'>.*?</li>(?:[ \t]*\n)?)+)", "<ul\n$1</ul>", reMultiline)
+  result = result.replaceRe(re"((?:<li class='ol'>.*?</li>(?:[ \t]*\n)?)+)", "<ol\n$1</ol>", reMultiline)
 
   result = result.replace("<li class='ul'>", "<li>").replace("<li class='ol'>", "<li>")
 
@@ -243,7 +243,9 @@ proc parse*(p: MarkdownParser, text: string): string =
     # Handle Reference Links: [text][id]
     result = result.replaceRe(re"\[([^\]]*)\]\[([^\]]*)\]", proc(m: RegexMatch): string =
       let text = m[1]
-      let id = m[2].strip()
+      var id = m[2].strip()
+      if id == "":
+        id = text.strip()
       if refLinks.contains(id):
         return "<a href='" & escapeHtml(refLinks[id]) & "'>" & escapeHtml(text) & "</a>"
       else:
