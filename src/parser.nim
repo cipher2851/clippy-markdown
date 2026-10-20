@@ -45,8 +45,8 @@ proc isBlockTag(trimmed: string): bool =
 proc parseImpl(p: MarkdownParser, text: string): string =
   var result = text
 
-  # HTML Comments
-  result = result.replaceRe(re"<!--.*?-->", "", reDotAll)
+  # HTML Comments (input has already been HTML-escaped)
+  result = result.replaceRe(re"&lt;!--.*?--&gt;", "", reDotAll)
 
   # Fenced Code Blocks (with an optional info string)
   result = result.replaceRe(re"```[^\n]*\n(.*?)```", proc(m: RegexMatch): string =
@@ -303,16 +303,17 @@ proc parse*(p: MarkdownParser, text: string): string =
 
   # Handle Escaped Characters
   let escMap = {
-    "\\*": "__ESC_AST__",
-    "\\_": "__ESC_UND__",
-    "\\#": "__ESC_HASH__",
-    "\\`": "__ESC_TICK__",
-    "\\~": "__ESC_TILD__",
-    "\\[": "__ESC_LBRK__",
-    "\\]": "__ESC_RBRK__",
-    "\\(": "__ESC_LPAR__",
-    "\\)": "__ESC_RPAR__",
-    "\\\\": "__ESC_BSLASH__"
+    "\\*": "\x1FESC_AST\x1F",
+    "\\_": "\x1FESC_UND\x1F",
+    "\\#": "\x1FESC_HASH\x1F",
+    "\\`": "\x1FESC_TICK\x1F",
+    "\\~": "\x1FESC_TILD\x1F",
+    "\\[": "\x1FESC_LBRK\x1F",
+    "\\]": "\x1FESC_RBRK\x1F",
+    "\\(": "\x1FESC_LPAR\x1F",
+    "\\)": "\x1FESC_RPAR\x1F",
+    "\\$": "\x1FESC_DOL\x1F",
+    "\\\\": "\x1FESC_BSLASH\x1F"
   }
 
   for esc, placeholder in escMap.pairs:

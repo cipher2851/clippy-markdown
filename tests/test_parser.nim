@@ -40,6 +40,10 @@ suite "clippy markdown parser":
     let p = newParser()
     check p.parse("\\*star\\*") == "<p>*star*</p>"
 
+  test "escaped dollar does not become math":
+    let p = newParser()
+    check p.parse("\\$5") == "<p>$5</p>"
+
   test "plugin":
     var p = newParser()
     p.addPlugin(proc(s: string): string = s.replace("TODO:", "DONE:"))
@@ -55,3 +59,7 @@ suite "clippy markdown parser":
     let p = newParser()
     let html = p.parse("[x][]\n\n[x]: /url")
     check html.contains("<a href='/url'>x</a>")
+
+  test "html comments are removed":
+    let p = newParser()
+    check p.parse("Hello <!-- comment --> world") == "<p>Hello  world</p>"
