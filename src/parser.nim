@@ -172,7 +172,7 @@ proc parseImpl(p: MarkdownParser, text: string): string =
     let cls = if prefix.contains(".") then "ol" else "ul"
     return "<li class='" & cls & "'> <input type='checkbox' disabled /> " & content & "</li>"
   , reMultiline)
-  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[x\]\s+(.*)$", proc(m: RegexMatch): string =
+  result = result.replaceRe(re"^\s*([\*\-]|\d+\.\s+)\s*\[[xX]\]\s+(.*)$", proc(m: RegexMatch): string =
     let prefix = m[1]
     let content = m[2]
     let cls = if prefix.contains(".") then "ol" else "ul"
@@ -234,6 +234,17 @@ proc parseImpl(p: MarkdownParser, text: string): string =
       else:
         return "[" & text & "][" & id & "]"
     )
+
+    # Handle Collapsed Reference Links: [text]
+    result = result.replaceRe(re"\[([^\]]+)\](?!\[)(?!\()", proc(m: RegexMatch): string =
+      let text = m[1]
+      if text.startsWith("^"): return m[0]
+      let id = text.strip()
+      if refLinks.contains(id):
+        return "<a href='" & refLinks[id] & "'>" & text & "</a>"
+      return m[0]
+    )
+
     result = result.replaceRe(re"\[\^([^\]]+)\]", "<sup><a href='#fn-\$1'>[\$1]</a></sup>")
 
     # Bold formatting (Strong)
@@ -316,8 +327,14 @@ proc parse*(p: MarkdownParser, text: string): string =
     "\\\\": "\x1FESC_BSLASH\x1F"
   }
 
+  # Process escaped backslashes first so they are not consumed by other escapes.
   for esc, placeholder in escMap.pairs:
-    result = result.replace(esc, placeholder)
+    if placeholder == "\x1FESC_BSLASH\x1F":
+      result = result.replace(esc, placeholder)
+
+  for esc, placeholder in escMap.pairs:
+    if placeholder != "\x1FESC_BSLASH\x1F":
+      result = result.replace(esc, placeholder)
 
   result = p.parseImpl(result)
 

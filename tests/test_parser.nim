@@ -44,6 +44,10 @@ suite "clippy markdown parser":
     let p = newParser()
     check p.parse("\\$5") == "<p>$5</p>"
 
+  test "escaped backslash":
+    let p = newParser()
+    check p.parse("\\\\") == "<p>\\</p>"
+
   test "plugin":
     var p = newParser()
     p.addPlugin(proc(s: string): string = s.replace("TODO:", "DONE:"))
@@ -59,6 +63,16 @@ suite "clippy markdown parser":
     let p = newParser()
     let html = p.parse("[x][]\n\n[x]: /url")
     check html.contains("<a href='/url'>x</a>")
+
+  test "collapsed reference link":
+    let p = newParser()
+    let html = p.parse("[x]\n\n[x]: /url")
+    check html.contains("<a href='/url'>x</a>")
+
+  test "checked task list accepts uppercase x":
+    let p = newParser()
+    let html = p.parse("* [X] done")
+    check html.contains("<input type='checkbox' checked disabled /> done")
 
   test "html comments are removed":
     let p = newParser()
