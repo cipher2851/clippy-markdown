@@ -77,3 +77,18 @@ suite "clippy markdown parser":
   test "html comments are removed":
     let p = newParser()
     check p.parse("Hello <!-- comment --> world") == "<p>Hello  world</p>"
+
+  test "reference image":
+    let p = newParser()
+    let html = p.parse("![x][y]\n\n[y]: /img")
+    check html.contains("<img src='/img' alt='x' />")
+
+  test "collapsed reference image":
+    let p = newParser()
+    let html = p.parse("![x]\n\n[x]: /img")
+    check html.contains("<img src='/img' alt='x' />")
+
+  test "case-insensitive reference label":
+    let p = newParser()
+    let html = p.parse("[x]\n\n[X]: /url")
+    check html.contains("<a href='/url'>x</a>")

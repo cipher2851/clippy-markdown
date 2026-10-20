@@ -42,6 +42,10 @@ proc isBlockTag(trimmed: string): bool =
   else:
     return false
 
+proc normalizeRefLabel(s: string): string =
+  result = s.strip().toLowerAscii()
+  result = result.replaceRe(re"\s+", " ")
+
 proc parseImpl(p: MarkdownParser, text: string): string =
   var result = text
 
@@ -154,7 +158,7 @@ proc parseImpl(p: MarkdownParser, text: string): string =
   # Reference Link Definitions
   var refLinks = initOrderedTable[string, string]()
   result = result.replaceRe(re"^\s*\[([^\]]+)\]: (.*)$", proc(m: RegexMatch): string =
-    let id = m[1].strip()
+    let id = normalizeRefLabel(m[1])
     let url = m[2].strip()
     refLinks[id] = url
     return ""
@@ -223,24 +227,31 @@ proc parseImpl(p: MarkdownParser, text: string): string =
       return link
     )
 
-    # Handle Reference Links: [text][id]
-    result = result.replaceRe(re"\[([^\]]*)\]\[([^\]]*)\]", proc(m: RegexMatch): string =
-      let text = m[1]
-      var id = m[2].strip()
+    # Handle Reference Links/Images: [text][id] or ![alt][id]
+    result = result.replaceRe(re"(!?)\[([^\]]*)\]\[([^\]]*)\]", proc(m: RegexMatch): string =
+      let marker = m[1]
+      let text = m[2]
+      var id = m[3].strip()
       if id == "":
         id = text.strip()
+      id = normalizeRefLabel(id)
       if refLinks.contains(id):
+        if marker == "!":
+          return "<img src='" & refLinks[id] & "' alt='" & text & "' />"
         return "<a href='" & refLinks[id] & "'>" & text & "</a>"
-      else:
-        return "[" & text & "][" & id & "]"
+      return m[0]
     )
 
-    # Handle Collapsed Reference Links: [text]
-    result = result.replaceRe(re"\[([^\]]+)\](?!\[)(?!\()", proc(m: RegexMatch): string =
-      let text = m[1]
-      if text.startsWith("^"): return m[0]
-      let id = text.strip()
+    # Handle Collapsed Reference Links/Images: [text] or ![alt]
+    result = result.replaceRe(re"(!?)\[([^\]]+)\](?!\[)(?!\()", proc(m: RegexMatch): string =
+      let marker = m[1]
+      let text = m[2]
+      if marker != "!" and text.startsWith("^"):
+        return m[0]
+      let id = normalizeRefLabel(text)
       if refLinks.contains(id):
+        if marker == "!":
+          return "<img src='" & refLinks[id] & "' alt='" & text & "' />"
         return "<a href='" & refLinks[id] & "'>" & text & "</a>"
       return m[0]
     )
