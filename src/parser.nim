@@ -137,6 +137,15 @@ proc parseImpl(p: MarkdownParser, text: string): string =
   result = result.replaceRe(re"^### (.*)$", proc(m: RegexMatch): string =
     return "<h3 id='" & slugify(m[1]) & "'>" & m[1] & "</h3>"
   , reMultiline)
+  result = result.replaceRe(re"^#### (.*)$", proc(m: RegexMatch): string =
+    return "<h4 id='" & slugify(m[1]) & "'>" & m[1] & "</h4>"
+  , reMultiline)
+  result = result.replaceRe(re"^##### (.*)$", proc(m: RegexMatch): string =
+    return "<h5 id='" & slugify(m[1]) & "'>" & m[1] & "</h5>"
+  , reMultiline)
+  result = result.replaceRe(re"^###### (.*)$", proc(m: RegexMatch): string =
+    return "<h6 id='" & slugify(m[1]) & "'>" & m[1] & "</h6>"
+  , reMultiline)
 
   # Blockquotes
   result = result.replaceRe(re"((?:^>\s*.*\n?)+)", proc(m: RegexMatch): string =
@@ -155,18 +164,29 @@ proc parseImpl(p: MarkdownParser, text: string): string =
     return "<blockquote class='md-blockquote'>" & p.parseImpl(inner) & "</blockquote>"
   , reMultiline)
 
-  # Reference Link Definitions
-  var refLinks = initOrderedTable[string, string]()
-  result = result.replaceRe(re"^\s*\[([^\]]+)\]: (.*)$", proc(m: RegexMatch): string =
-    let id = normalizeRefLabel(m[1])
-    let url = m[2].strip()
-    refLinks[id] = url
-    return ""
+  # Footnote Definitions (process before reference definitions so [^id] is not consumed)
+  result = result.replaceRe(re"^\s*\[\^([^\]]+)\]:\s*(.*)$", proc(m: RegexMatch): string =
+    return "<div class='md-footnote' id='fn-" & m[1] & "'> <small>" & m[1] & ": " & m[2] & "</small> </div>"
   , reMultiline)
 
-  # Footnote Definitions
-  result = result.replaceRe(re"^\s*\[\^([^\]]+)\]: (.*)$", proc(m: RegexMatch): string =
-    return "<div class='md-footnote' id='fn-" & m[1] & "'> <small>" & m[1] & ": " & m[2] & "</small> </div>"
+  # Reference Link Definitions
+  var refLinks = initOrderedTable[string, string]()
+  var refTitles = initTable[string, string]()
+  result = result.replaceRe(re"^\s*\[(?!\^)([^\]]+)\]:\s*(.*)$", proc(m: RegexMatch): string =
+    let id = normalizeRefLabel(m[1])
+    var raw = m[2].strip()
+    var url = raw
+    var title = ""
+    let quoteIdx = raw.find({'"', '\''})
+    if quoteIdx >= 0:
+      url = raw[0..<quoteIdx].strip()
+      if quoteIdx + 1 < raw.len:
+        title = raw[quoteIdx + 1 .. ^1].strip()
+        if title.len > 0 and (title[^1] == '"' or title[^1] == '\''):
+          title = title[0..^2]
+    refLinks[id] = url
+    refTitles[id] = title
+    return ""
   , reMultiline)
 
   # Task lists
@@ -236,8 +256,13 @@ proc parseImpl(p: MarkdownParser, text: string): string =
         id = text.strip()
       id = normalizeRefLabel(id)
       if refLinks.contains(id):
+        let title = if refTitles.contains(id): refTitles[id] else: ""
         if marker == "!":
+          if title != "":
+            return "<img src='" & refLinks[id] & "' alt='" & text & "' title='" & title & "' />"
           return "<img src='" & refLinks[id] & "' alt='" & text & "' />"
+        if title != "":
+          return "<a href='" & refLinks[id] & "' title='" & title & "'>" & text & "</a>"
         return "<a href='" & refLinks[id] & "'>" & text & "</a>"
       return m[0]
     )
@@ -250,8 +275,13 @@ proc parseImpl(p: MarkdownParser, text: string): string =
         return m[0]
       let id = normalizeRefLabel(text)
       if refLinks.contains(id):
+        let title = if refTitles.contains(id): refTitles[id] else: ""
         if marker == "!":
+          if title != "":
+            return "<img src='" & refLinks[id] & "' alt='" & text & "' title='" & title & "' />"
           return "<img src='" & refLinks[id] & "' alt='" & text & "' />"
+        if title != "":
+          return "<a href='" & refLinks[id] & "' title='" & title & "'>" & text & "</a>"
         return "<a href='" & refLinks[id] & "'>" & text & "</a>"
       return m[0]
     )

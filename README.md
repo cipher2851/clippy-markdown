@@ -20,10 +20,10 @@ nim c -r src/main.nim input.md > output.html
 
 ## Features
 
-- Header support (`#`, `##`, `###`) with generated IDs
+- Header support (`#` to `######`) with generated IDs
 - Basic formatting (`**bold**`, `*italic*`, `~~strikethrough~~`)
 - Inline code, fenced code blocks, and indented code blocks
-- Links, images, and reference-style links
+- Links, images, and reference-style links (including titles)
 - Tables with alignment markers
 - Ordered and unordered lists
 - Blockquotes, horizontal rules, footnotes, and task lists
