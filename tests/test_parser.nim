@@ -48,6 +48,12 @@ suite "clippy markdown parser":
     let p = newParser()
     check p.parse("\\\\") == "<p>\\</p>"
 
+  test "escaped html-special characters":
+    let p = newParser()
+    check p.parse("\\<") == "<p>&lt;</p>"
+    check p.parse("\\>") == "<p>&gt;</p>"
+    check p.parse("\\&") == "<p>&amp;</p>"
+
   test "plugin":
     var p = newParser()
     p.addPlugin(proc(s: string): string = s.replace("TODO:", "DONE:"))

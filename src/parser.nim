@@ -383,36 +383,41 @@ proc parseImpl(p: MarkdownParser, text: string): string =
 proc parse*(p: MarkdownParser, text: string): string =
   var result = escapeHtml(text)
 
-  # Handle Escaped Characters
-  let escMap = {
-    "\\*": "\x1FESC_AST\x1F",
-    "\\_": "\x1FESC_UND\x1F",
-    "\\#": "\x1FESC_HASH\x1F",
-    "\\`": "\x1FESC_TICK\x1F",
-    "\\~": "\x1FESC_TILD\x1F",
-    "\\[": "\x1FESC_LBRK\x1F",
-    "\\]": "\x1FESC_RBRK\x1F",
-    "\\(": "\x1FESC_LPAR\x1F",
-    "\\)": "\x1FESC_RPAR\x1F",
-    "\\$": "\x1FESC_DOL\x1F",
-    "\\\\": "\x1FESC_BSLASH\x1F"
-  }
+  type EscEntry = tuple[esc: string, placeholder: string, restore: string]
+  var entries: seq[EscEntry] = @[]
 
-  # Process escaped backslashes first so they are not consumed by other escapes.
-  for esc, placeholder in escMap.pairs:
-    if placeholder == "\x1FESC_BSLASH\x1F":
-      result = result.replace(esc, placeholder)
+  # Process escaped backslashes before every other escaped character.
+  entries.add((esc: "\\\\", placeholder: "\x1FESC_BSLASH\x1F", restore: "\\"))
 
-  for esc, placeholder in escMap.pairs:
-    if placeholder != "\x1FESC_BSLASH\x1F":
-      result = result.replace(esc, placeholder)
+  # Protect escaped ASCII punctuation. Entries are matched against the HTML-
+  # escaped text, so HTML-special characters are handled separately below.
+  let normalPunct = "!\"#$%&'()*+,-./:;<=>?@[]^_`{|}~"
+  for c in normalPunct:
+    let esc = "\\" & $c
+    let ph = "\x1FESC_" & $ord(c) & "\x1F"
+    entries.add((esc: esc, placeholder: ph, restore: $c))
+
+  # HTML escaping turns these characters into entities, so their escaped
+  # forms must be matched and restored as entities.
+  entries.add((esc: "\\&amp;", placeholder: "\x1FESC_AMP\x1F", restore: "&amp;"))
+  entries.add((esc: "\\&lt;", placeholder: "\x1FESC_LT\x1F", restore: "&lt;"))
+  entries.add((esc: "\\&gt;", placeholder: "\x1FESC_GT\x1F", restore: "&gt;"))
+  entries.add((esc: "\\&quot;", placeholder: "\x1FESC_QUOT\x1F", restore: "&quot;"))
+  entries.add((esc: "\\&#39;", placeholder: "\x1FESC_APOS\x1F", restore: "&#39;"))
+
+  for e in entries:
+    if e.restore == "\\":
+      result = result.replace(e.esc, e.placeholder)
+
+  for e in entries:
+    if e.restore != "\\":
+      result = result.replace(e.esc, e.placeholder)
 
   result = p.parseImpl(result)
 
   # Restore Escaped Characters
-  for esc, placeholder in escMap.pairs:
-    let char = esc[1..^1]
-    result = result.replace(placeholder, char)
+  for e in entries:
+    result = result.replace(e.placeholder, e.restore)
 
   # Run custom plugins
   for plugin in p.plugins:
