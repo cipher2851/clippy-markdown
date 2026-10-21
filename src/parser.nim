@@ -177,13 +177,25 @@ proc parseImpl(p: MarkdownParser, text: string): string =
     var raw = m[2].strip()
     var url = raw
     var title = ""
-    let quoteIdx = raw.find({'"', '\''})
-    if quoteIdx >= 0:
-      url = raw[0..<quoteIdx].strip()
-      if quoteIdx + 1 < raw.len:
-        title = raw[quoteIdx + 1 .. ^1].strip()
-        if title.len > 0 and (title[^1] == '"' or title[^1] == '\''):
-          title = title[0..^2]
+
+    let dqPos = raw.find(" &quot;")
+    let sqPos = raw.find(" &#39;")
+    let parenPos = raw.find(" (")
+    var idx = -1
+    if dqPos >= 0: idx = dqPos
+    if sqPos >= 0 and (idx < 0 or sqPos < idx): idx = sqPos
+    if parenPos >= 0 and (idx < 0 or parenPos < idx): idx = parenPos
+
+    if idx >= 0:
+      url = raw[0..<idx].strip()
+      let rest = raw[idx..^1].strip()
+      if rest.len >= 12 and rest.startsWith("&quot;") and rest.endsWith("&quot;"):
+        title = rest[6 ..< rest.len - 6].strip()
+      elif rest.len >= 10 and rest.startsWith("&#39;") and rest.endsWith("&#39;"):
+        title = rest[5 ..< rest.len - 5].strip()
+      elif rest.len >= 2 and rest.startsWith("(") and rest.endsWith(")"):
+        title = rest[1 ..< rest.len - 1].strip()
+
     refLinks[id] = url
     refTitles[id] = title
     return ""
@@ -225,10 +237,19 @@ proc parseImpl(p: MarkdownParser, text: string): string =
   while changed and iterations < 3:
     let prev = result
     # Handle Images: ![alt](url "title") or ![alt](url)
-    result = result.replaceRe(re"!\[([^\]]*)\]\(([^\s\)]+)(?:\s+[\"'](.*?)[\"'])?\)", proc(m: RegexMatch): string =
-      var img = "<img src='" & m[2] & "' alt='" & m[1] & "'"
+    result = result.replaceRe(re"!\[([^\]]*)\]\(([^\s\)]+)(?:\s+(&quot;.*?&quot;|&#39;.*?&#39;|\(.*?\)))?\)", proc(m: RegexMatch): string =
+      var title = ""
       if m.len > 3 and m[3] != "":
-        img &= " title='" & m[3] & "'"
+        let quoted = m[3]
+        if quoted.len >= 12 and quoted.startsWith("&quot;") and quoted.endsWith("&quot;"):
+          title = quoted[6 ..< quoted.len - 6]
+        elif quoted.len >= 10 and quoted.startsWith("&#39;") and quoted.endsWith("&#39;"):
+          title = quoted[5 ..< quoted.len - 5]
+        elif quoted.len >= 2 and quoted.startsWith("(") and quoted.endsWith(")"):
+          title = quoted[1 ..< quoted.len - 1]
+      var img = "<img src='" & m[2] & "' alt='" & m[1] & "'"
+      if title != "":
+        img &= " title='" & title & "'"
       img &= " />"
       return img
     )
@@ -238,12 +259,21 @@ proc parseImpl(p: MarkdownParser, text: string): string =
 
     # Handle Links: [text](url "title") or [text](url)
     # Includes support for internal links (URLs starting with #)
-    result = result.replaceRe(re"\[([^\]]*)\]\(([^\s\)]+)(?:\s+[\"'](.*?)[\"'])?\)", proc(m: RegexMatch): string =
+    result = result.replaceRe(re"\[([^\]]*)\]\(([^\s\)]+)(?:\s+(&quot;.*?&quot;|&#39;.*?&#39;|\(.*?\)))?\)", proc(m: RegexMatch): string =
       var url = m[2]
+      var title = ""
+      if m.len > 3 and m[3] != "":
+        let quoted = m[3]
+        if quoted.len >= 12 and quoted.startsWith("&quot;") and quoted.endsWith("&quot;"):
+          title = quoted[6 ..< quoted.len - 6]
+        elif quoted.len >= 10 and quoted.startsWith("&#39;") and quoted.endsWith("&#39;"):
+          title = quoted[5 ..< quoted.len - 5]
+        elif quoted.len >= 2 and quoted.startsWith("(") and quoted.endsWith(")"):
+          title = quoted[1 ..< quoted.len - 1]
 
       var link = "<a href='" & url & "'>" & m[1] & "</a>"
-      if m.len > 3 and m[3] != "":
-        link = "<a href='" & url & "' title='" & m[3] & "'>" & m[1] & "</a>"
+      if title != "":
+        link = "<a href='" & url & "' title='" & title & "'>" & m[1] & "</a>"
       return link
     )
 
