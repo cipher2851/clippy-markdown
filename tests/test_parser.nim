@@ -32,6 +32,12 @@ suite "clippy markdown parser":
     check html.contains("text-align: center;")
     check not html.contains("<p>  <tr")
 
+  test "table final row without trailing newline":
+    let p = newParser()
+    let md = "| a | b |\n| --- | :---: |\n| 1 | 2 |"
+    let html = p.parse(md)
+    check html.contains("<td style='padding: 8px; border: 1px solid #ddd; text-align: left;'>1</td>")
+
   test "internal link":
     let p = newParser()
     check p.parse("[x](#sec)") == "<p><a href='#sec'>x</a></p>"
