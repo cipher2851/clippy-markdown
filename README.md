@@ -18,6 +18,15 @@ Pass a Markdown file as the first argument. The generated HTML document is writt
 nim c -r src/main.nim input.md > output.html
 ```
 
+You can also read Markdown from standard input and write HTML to a file:
+
+```bash
+nim c -r src/main.nim --output output.html < input.md
+nim c -r src/main.nim - < input.md
+```
+
+Use `--help` for the full command-line options.
+
 ## Features
 
 - Header support (`#` to `######`) with generated IDs
