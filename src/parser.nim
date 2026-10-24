@@ -122,7 +122,7 @@ proc slugify(s: string): string =
     if c.isAlphaNumeric():
       result.add c
       prevHyphen = false
-    elif c.isSpaceAscii() or c == '-':
+    elif c.isSpaceAscii() or c == '-' or c == '_':
       if not prevHyphen and result.len > 0:
         result.add '-'
         prevHyphen = true
