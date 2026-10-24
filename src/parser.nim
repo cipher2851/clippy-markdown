@@ -116,8 +116,18 @@ proc splitCols(line: string): seq[string] =
   return t.split('|')
 
 proc slugify(s: string): string =
-  result = s.toLowerAscii()
-  result = result.replace(" ", "-")
+  result = ""
+  var prevHyphen = false
+  for c in s.toLowerAscii():
+    if c.isAlphaNumeric():
+      result.add c
+      prevHyphen = false
+    elif c.isSpaceAscii() or c == '-':
+      if not prevHyphen and result.len > 0:
+        result.add '-'
+        prevHyphen = true
+  if result.endsWith("-") and result.len > 0:
+    result = result[0 .. ^2]
 
 proc parseInline(text: string, refs: Table[string, RefInfo]): string
 
