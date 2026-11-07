@@ -128,6 +128,8 @@ proc slugify(s: string): string =
         prevHyphen = true
   if result.endsWith("-") and result.len > 0:
     result = result[0 .. ^2]
+  if result.startsWith("-") and result.len > 0:
+    result = result[1 .. ^1]
 
 proc parseInline(text: string, refs: Table[string, RefInfo]): string
 
