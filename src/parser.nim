@@ -31,10 +31,10 @@ proc escapeChar(c: char): string =
 proc stripTitle(s: string): string =
   let t = s.strip()
   if t.len == 0: return ""
-  if (t.startsWith("\"") and t.endsWith("\"")) or
+  if ((t.startsWith("\"") and t.endsWith("\"")) or
      (t.startsWith("'") and t.endsWith("'")) or
-     (t.startsWith("(") and t.endsWith(")")):
-    return t[1..^2]
+     (t.startsWith("(") and t.endsWith(")"))) and t.len > 2:
+    return t[1 .. ^2]
   return t
 
 proc parseDestination(inner: string): (string, string) =
@@ -66,8 +66,9 @@ proc collectRefs(lines: seq[string]): Table[string, RefInfo] =
     var title = ""
     if rest.startsWith("<"):
       let gt = rest.find('>')
-      if gt > 0:
-        url = rest[1 .. gt - 1]
+      if gt >= 1:
+        if gt > 1:
+          url = rest[1 .. gt - 1]
         let afterGt = if gt + 1 < rest.len: rest[gt + 1 .. ^1].strip() else: ""
         title = stripTitle(afterGt)
     else:
@@ -136,8 +137,8 @@ proc isTableSep(line: string): bool =
 
 proc splitCols(line: string): seq[string] =
   var t = line.strip()
-  if t.startsWith("|"): t = t[1 .. ^1]
-  if t.endsWith("|"): t = t[0 .. ^2]
+  if t.len > 1 and t.startsWith("|"): t = t[1 .. ^1]
+  if t.len > 1 and t.endsWith("|"): t = t[0 .. ^2]
   return t.split('|')
 
 proc slugify(s: string): string =
@@ -244,7 +245,7 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
               result.add " />"
               i = l + 1
               continue
-        let key = alt.toLowerAscii()
+        let key = alt.strip().toLowerAscii()
         if refs.hasKey(key):
           let info = refs[key]
           result.add "<img src='" & info.url & "' alt='" & parseInline(alt, refs) & "'"
@@ -298,7 +299,7 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
               i = l + 1
               continue
         if k >= n or (k < n and text[k] notin ['(', '[']):
-          let key = linkText.toLowerAscii()
+          let key = linkText.strip().toLowerAscii()
           if refs.hasKey(key):
             let info = refs[key]
             result.add "<a href='" & info.url & "'"
@@ -362,7 +363,10 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
 
 proc isBlockStart(t: string, lines: seq[string], i: int): bool =
   if t == "": return true
-  if t.startsWith("#"): return true
+  if t.startsWith("#"):
+    var level = 0
+    while level < t.len and level < 6 and t[level] == '#': level += 1
+    if level >= 1 and (level == t.len or t[level].isSpaceAscii()): return true
   if t.startsWith(">"): return true
   if t.startsWith("```") or t.startsWith("~~~"): return true
   if isHr(t): return true
@@ -448,7 +452,11 @@ proc parse*(p: Parser, md: string): string =
     if trimmed.startsWith(">"):
       var bqLines: seq[string] = @[]
       while i < n and lines[i].strip().startsWith(">"):
-        bqLines.add lines[i].strip()[1 .. ^1].strip()
+        let bq = lines[i].strip()
+        if bq == ">":
+          bqLines.add ""
+        else:
+          bqLines.add bq[1 .. ^1].strip()
         i += 1
       outBlocks.add "<blockquote class='md-blockquote'>" & parseInline(bqLines.join(" "), p.refs) & "</blockquote>"
       continue
