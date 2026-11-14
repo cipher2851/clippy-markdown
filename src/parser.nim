@@ -43,7 +43,7 @@ proc collectRefs(lines: seq[string]): Table[string, RefInfo] =
     let t = line.strip()
     if t.len == 0 or not t.startsWith("["): continue
     let close = t.find(']')
-    if close <= 0: continue
+    if close <= 1: continue
     if close + 1 >= t.len or t[close + 1] != ':': continue
     let label = t[1..close - 1].strip().toLowerAscii()
     let rest = t[close + 2 .. ^1].strip()
@@ -54,19 +54,21 @@ proc collectRefs(lines: seq[string]): Table[string, RefInfo] =
       let gt = rest.find('>')
       if gt > 0:
         url = rest[1 .. gt - 1]
-        title = stripTitle(rest[gt + 1 .. ^1].strip())
+        let afterGt = if gt + 1 < rest.len: rest[gt + 1 .. ^1].strip() else: ""
+        title = stripTitle(afterGt)
     else:
       var i = 0
       while i < rest.len and not rest[i].isSpaceAscii(): i += 1
       url = rest[0 ..< i]
-      title = stripTitle(rest[i .. ^1].strip())
+      let afterUrl = if i < rest.len: rest[i .. ^1].strip() else: ""
+      title = stripTitle(afterUrl)
     result[label] = RefInfo(url: url, title: title)
 
 proc isRefDef(line: string): bool =
   let t = line.strip()
   if not t.startsWith("["): return false
   let close = t.find(']')
-  if close <= 0: return false
+  if close <= 1: return false
   if close + 1 >= t.len: return false
   return t[close + 1] == ':'
 
@@ -289,7 +291,7 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
               i = l + 1
               continue
         # collapsed reference link
-        if k >= n or text[k] notin ['(', '[']:
+        if k >= n or (k < n and text[k] notin ['(', '[']):
           let key = linkText.toLowerAscii()
           if refs.hasKey(key):
             let info = refs[key]
@@ -382,7 +384,7 @@ proc parse*(p: Parser, md: string): string =
     let t = line.strip()
     if not t.startsWith("[^")): continue
     let close = t.find(']')
-    if close <= 0: continue
+    if close < 3: continue
     if close + 1 >= t.len or t[close + 1] != ':': continue
     let label = t[2 .. close - 1]
     let text = t[close + 2 .. ^1].strip()
@@ -401,6 +403,23 @@ proc parse*(p: Parser, md: string): string =
     if isRefDef(trimmed):
       i += 1
       continue
+    # HTML comment block or comment-only line
+    if trimmed.startsWith("<!--"):
+      let endPos = trimmed.find("-->")
+      if endPos >= 0:
+        let afterComment = if endPos + 3 < trimmed.len: trimmed[endPos + 3 .. ^1].strip() else: ""
+        if afterComment == "":
+          i += 1
+          continue
+      else:
+        var j = i
+        while j < n and not lines[j].contains("-->"):
+          j += 1
+        if j < n:
+          i = j + 1
+        else:
+          i = n
+        continue
     # footnote def
     if trimmed.startsWith("[^")) and trimmed.contains("]:"):
       let close = trimmed.find(']')
@@ -483,7 +502,7 @@ proc parse*(p: Parser, md: string): string =
     if isListItem(trimmed):
       var ordered = isOrderedItem(trimmed)
       var items: seq[string] = @[]
-      while i < n and isListItem(lines[i].strip()):
+      while i < n and isListItem(lines[i].strip()) and isOrderedItem(lines[i].strip()) == ordered:
         let t = lines[i].strip()
         let content = stripListMarker(t).strip()
         var itemHtml = ""
