@@ -37,6 +37,19 @@ proc stripTitle(s: string): string =
     return t[1..^2]
   return t
 
+proc parseDestination(inner: string): (string, string) =
+  let s = inner.strip()
+  if s.startsWith("<"):
+    let gt = s.find('>')
+    if gt >= 0:
+      let url = if gt > 0: s[1 .. gt - 1] else: ""
+      let rest = if gt + 1 < s.len: s[gt + 1 .. ^1].strip() else: ""
+      return (url, stripTitle(rest))
+  let sp = s.find(' ')
+  if sp >= 0:
+    return (s[0 .. sp - 1].strip(), stripTitle(s[sp + 1 .. ^1].strip()))
+  return (s, "")
+
 proc collectRefs(lines: seq[string]): Table[string, RefInfo] =
   result = initTable[string, RefInfo]()
   for line in lines:
@@ -45,8 +58,9 @@ proc collectRefs(lines: seq[string]): Table[string, RefInfo] =
     let close = t.find(']')
     if close <= 1: continue
     if close + 1 >= t.len or t[close + 1] != ':': continue
-    let label = t[1..close - 1].strip().toLowerAscii()
-    let rest = t[close + 2 .. ^1].strip()
+    let label = t[1 .. close - 1].strip().toLowerAscii()
+    if label.len == 0: continue
+    let rest = if close + 2 < t.len: t[close + 2 .. ^1].strip() else: ""
     if rest.len == 0: continue
     var url = ""
     var title = ""
@@ -210,14 +224,7 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
             elif text[l] == ')': depthp -= 1
             l += 1
           if l < n:
-            let inner = text[k + 1 .. l - 1].strip()
-            var url = inner
-            var title = ""
-            let sp = url.find(' ')
-            if sp >= 0:
-              title = stripTitle(url[sp + 1 .. ^1])
-              url = url[0 .. sp - 1].strip()
-            url = url.strip(chars = {'<', '>'})
+            let (url, title) = parseDestination(text[k + 1 .. l - 1])
             result.add "<img src='" & url & "' alt='" & parseInline(alt, refs) & "'"
             if title.len > 0: result.add " title='" & title & "'"
             result.add " />"
@@ -237,7 +244,6 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
               result.add " />"
               i = l + 1
               continue
-        # collapsed reference image
         let key = alt.toLowerAscii()
         if refs.hasKey(key):
           let info = refs[key]
@@ -249,6 +255,14 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
       result.add "!"
       i += 1
       continue
+    if text[i] == '[' and i + 1 < n and text[i + 1] == '^':
+      var j = i + 2
+      while j < n and text[j] != ']': j += 1
+      if j < n and j > i + 2:
+        let label = text[i + 2 .. j - 1]
+        result.add "<sup><a href='#fn-" & label & "'>" & escapeHtml(label) & "</a></sup>"
+        i = j + 1
+        continue
     if text[i] == '[':
       var j = i + 1
       while j < n and text[j] != ']': j += 1
@@ -263,14 +277,7 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
             elif text[l] == ')': depthp -= 1
             l += 1
           if l < n:
-            let inner = text[k + 1 .. l - 1].strip()
-            var url = inner
-            var title = ""
-            let sp = url.find(' ')
-            if sp >= 0:
-              title = stripTitle(url[sp + 1 .. ^1])
-              url = url[0 .. sp - 1].strip()
-            url = url.strip(chars = {'<', '>'})
+            let (url, title) = parseDestination(text[k + 1 .. l - 1])
             result.add "<a href='" & url & "'"
             if title.len > 0: result.add " title='" & title & "'"
             result.add ">" & parseInline(linkText, refs) & "</a>"
@@ -290,7 +297,6 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
               result.add ">" & parseInline(linkText, refs) & "</a>"
               i = l + 1
               continue
-        # collapsed reference link
         if k >= n or (k < n and text[k] notin ['(', '[']):
           let key = linkText.toLowerAscii()
           if refs.hasKey(key):
@@ -310,14 +316,14 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
         result.add "<strong>" & parseInline(text[i + 2 .. j - 1], refs) & "</strong>"
         i = j + 2
         continue
-    if text[i] == '*' :
+    if text[i] == '*':
       var j = i + 1
       while j < n and text[j] != '*': j += 1
       if j < n:
         result.add "<em>" & parseInline(text[i + 1 .. j - 1], refs) & "</em>"
         i = j + 1
         continue
-    if text[i] == '_' :
+    if text[i] == '_':
       var j = i + 1
       while j < n and text[j] != '_': j += 1
       if j < n:
@@ -346,14 +352,6 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
           result.add "<span class='math-inline'>" & escapeHtml(text[i + 1 .. j - 1]) & "</span>"
           i = j + 1
           continue
-    if text[i] == '[' and i + 1 < n and text[i + 1] == '^':
-      var j = i + 2
-      while j < n and text[j] != ']': j += 1
-      if j < n:
-        let label = text[i + 2 .. j - 1]
-        result.add "<sup><a href='#fn-" & label & "'>" & label & "</a></sup>"
-        i = j + 1
-        continue
     if text[i] == '<' and i + 3 < n and text[i .. i + 3] == "<!--":
       let j = text.find("-->", i)
       if j >= 0:
@@ -387,7 +385,7 @@ proc parse*(p: Parser, md: string): string =
     if close < 3: continue
     if close + 1 >= t.len or t[close + 1] != ':': continue
     let label = t[2 .. close - 1]
-    let text = t[close + 2 .. ^1].strip()
+    let text = if close + 2 < t.len: t[close + 2 .. ^1].strip() else: ""
     footnoteDefs[label] = text
 
   var i = 0
@@ -403,7 +401,6 @@ proc parse*(p: Parser, md: string): string =
     if isRefDef(trimmed):
       i += 1
       continue
-    # HTML comment block or comment-only line
     if trimmed.startsWith("<!--"):
       let endPos = trimmed.find("-->")
       if endPos >= 0:
@@ -420,13 +417,11 @@ proc parse*(p: Parser, md: string): string =
         else:
           i = n
         continue
-    # footnote def
     if trimmed.startsWith("[^")) and trimmed.contains("]:"):
       let close = trimmed.find(']')
       if close > 0 and close + 1 < trimmed.len and trimmed[close + 1] == ':':
         i += 1
         continue
-    # header
     if trimmed.startsWith("#"):
       var level = 0
       while level < trimmed.len and level < 6 and trimmed[level] == '#': level += 1
@@ -436,7 +431,6 @@ proc parse*(p: Parser, md: string): string =
         outBlocks.add "<h" & $level & " id='" & id & "'>" & parseInline(text, p.refs) & "</h" & $level & ">"
         i += 1
         continue
-    # fenced code
     if trimmed.startsWith("```") or trimmed.startsWith("~~~"):
       let fence = trimmed[0 .. 2]
       i += 1
@@ -447,12 +441,10 @@ proc parse*(p: Parser, md: string): string =
       i += 1
       outBlocks.add "<pre><code>" & escapeHtml(codeLines.join("\n")) & "</code></pre>"
       continue
-    # hr
     if isHr(trimmed):
       outBlocks.add "<hr />"
       i += 1
       continue
-    # blockquote
     if trimmed.startsWith(">"):
       var bqLines: seq[string] = @[]
       while i < n and lines[i].strip().startsWith(">"):
@@ -460,7 +452,6 @@ proc parse*(p: Parser, md: string): string =
         i += 1
       outBlocks.add "<blockquote class='md-blockquote'>" & parseInline(bqLines.join(" "), p.refs) & "</blockquote>"
       continue
-    # display math
     if trimmed.startsWith("$$") and trimmed.endsWith("$$") and trimmed.len > 4:
       outBlocks.add "<div class='math-display'>" & escapeHtml(trimmed[2 .. ^3]) & "</div>"
       i += 1
@@ -492,13 +483,11 @@ proc parse*(p: Parser, md: string): string =
       i = closeIdx + 1
       outBlocks.add "<div class='math-display'>" & escapeHtml(mathLines.join("\n")) & "</div>"
       continue
-    # table
     if i + 1 < n and isTableSep(lines[i + 1].strip()):
       let (html, newI) = parseTable(lines, i, p.refs)
       outBlocks.add html
       i = newI
       continue
-    # list
     if isListItem(trimmed):
       var ordered = isOrderedItem(trimmed)
       var items: seq[string] = @[]
@@ -523,7 +512,6 @@ proc parse*(p: Parser, md: string): string =
       html.add "</" & tag & ">"
       outBlocks.add html
       continue
-    # indented code
     if line.startsWith("    ") or line.startsWith("\t"):
       var codeLines: seq[string] = @[]
       while i < n and (lines[i].startsWith("    ") or lines[i].startsWith("\t")):
@@ -531,7 +519,6 @@ proc parse*(p: Parser, md: string): string =
         i += 1
       outBlocks.add "<pre><code>" & escapeHtml(codeLines.join("\n")) & "</code></pre>"
       continue
-    # paragraph
     var paraLines: seq[string] = @[]
     while i < n and lines[i].strip() != "" and not isBlockStart(lines[i].strip(), lines, i):
       if isRefDef(lines[i].strip()):
@@ -543,7 +530,6 @@ proc parse*(p: Parser, md: string): string =
       outBlocks.add "<p>" & parseInline(paraLines.join(" "), p.refs) & "</p>"
     continue
 
-  # Post-process: last list block loses trailing newline before closing tag
   if outBlocks.len > 0:
     let last = outBlocks[^1]
     if last.startsWith("<ul>") or last.startsWith("<ol>"):
