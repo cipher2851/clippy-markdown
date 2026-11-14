@@ -42,7 +42,7 @@ proc parseDestination(inner: string): (string, string) =
   if s.startsWith("<"):
     let gt = s.find('>')
     if gt >= 0:
-      let url = if gt > 0: s[1 .. gt - 1] else: ""
+      let url = if gt > 1: s[1 .. gt - 1] else: ""
       let rest = if gt + 1 < s.len: s[gt + 1 .. ^1].strip() else: ""
       return (url, stripTitle(rest))
   let sp = s.find(' ')
@@ -55,6 +55,9 @@ proc collectRefs(lines: seq[string]): Table[string, RefInfo] =
   for line in lines:
     let t = line.strip()
     if t.len == 0 or not t.startsWith("["): continue
+    if t.startsWith("[^'): continue
+    let leading = line.len - t.len
+    if leading > 3: continue
     let close = t.find(']')
     if close <= 1: continue
     if close + 1 >= t.len or t[close + 1] != ':': continue
@@ -82,6 +85,7 @@ proc collectRefs(lines: seq[string]): Table[string, RefInfo] =
 proc isRefDef(line: string): bool =
   let t = line.strip()
   if not t.startsWith("["): return false
+  if t.startsWith("[^'): return false
   let close = t.find(']')
   if close <= 1: return false
   if close + 1 >= t.len: return false
@@ -371,7 +375,7 @@ proc isBlockStart(t: string, lines: seq[string], i: int): bool =
   if t.startsWith("```") or t.startsWith("~~~"): return true
   if isHr(t): return true
   if isListItem(t): return true
-  if t.startsWith("    ") or t.startsWith("\t"): return true
+  if lines[i].startsWith("    ") or lines[i].startsWith("\t"): return true
   if t.startsWith("$$"): return true
   if isRefDef(t): return true
   if i + 1 < lines.len and isTableSep(lines[i + 1].strip()): return true
@@ -384,7 +388,7 @@ proc parse*(p: Parser, md: string): string =
   var footnoteDefs = initOrderedTable[string, string]()
   for line in lines:
     let t = line.strip()
-    if not t.startsWith("[^")): continue
+    if not t.startsWith("[^'): continue
     let close = t.find(']')
     if close < 3: continue
     if close + 1 >= t.len or t[close + 1] != ':': continue
@@ -421,7 +425,7 @@ proc parse*(p: Parser, md: string): string =
         else:
           i = n
         continue
-    if trimmed.startsWith("[^")) and trimmed.contains("]:"):
+    if trimmed.startsWith("[^') and trimmed.contains("]:"):
       let close = trimmed.find(']')
       if close > 0 and close + 1 < trimmed.len and trimmed[close + 1] == ':':
         i += 1
