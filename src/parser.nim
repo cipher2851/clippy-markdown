@@ -102,6 +102,15 @@ proc stripListMarker(t: string): string =
     return t[i + 1 .. ^1].strip()
   return t
 
+proc stripIndent(s: string): string =
+  if s.startsWith("\t"):
+    if s.len > 1: return s[1 .. ^1]
+    return ""
+  if s.startsWith("    "):
+    if s.len > 4: return s[4 .. ^1]
+    return ""
+  return s
+
 proc isTableSep(line: string): bool =
   let t = line.strip()
   if not t.contains("|"): return false
@@ -368,7 +377,7 @@ proc parse*(p: Parser, md: string): string =
   let lines = md.splitLines()
   p.refs = collectRefs(lines)
 
-  var footnoteDefs = initTable[string, string]()
+  var footnoteDefs = initOrderedTable[string, string]()
   for line in lines:
     let t = line.strip()
     if not t.startsWith("[^")): continue
@@ -437,6 +446,33 @@ proc parse*(p: Parser, md: string): string =
       outBlocks.add "<div class='math-display'>" & escapeHtml(trimmed[2 .. ^3]) & "</div>"
       i += 1
       continue
+    if trimmed.startsWith("$$"):
+      var closeIdx = -1
+      for j in i + 1 ..< n:
+        if lines[j].strip().startsWith("$$"):
+          closeIdx = j
+          break
+      if closeIdx < 0:
+        outBlocks.add "<p>" & parseInline(trimmed, p.refs) & "</p>"
+        i += 1
+        continue
+      var mathLines: seq[string] = @[]
+      if trimmed.len > 2:
+        let openContent = trimmed[2 .. ^1]
+        if openContent.strip().len > 0:
+          mathLines.add openContent
+      for j in i + 1 ..< closeIdx:
+        mathLines.add lines[j]
+      let closeLine = lines[closeIdx].strip()
+      if closeLine.len > 2:
+        var c = closeLine
+        if c.startsWith("$$"): c = c[2 .. ^1]
+        if c.endsWith("$$") and c.len >= 2: c = c[0 .. ^3]
+        if c.strip().len > 0:
+          mathLines.add c
+      i = closeIdx + 1
+      outBlocks.add "<div class='math-display'>" & escapeHtml(mathLines.join("\n")) & "</div>"
+      continue
     # table
     if i + 1 < n and isTableSep(lines[i + 1].strip()):
       let (html, newI) = parseTable(lines, i, p.refs)
@@ -472,7 +508,7 @@ proc parse*(p: Parser, md: string): string =
     if line.startsWith("    ") or line.startsWith("\t"):
       var codeLines: seq[string] = @[]
       while i < n and (lines[i].startsWith("    ") or lines[i].startsWith("\t")):
-        codeLines.add lines[i].strip(leading = true)
+        codeLines.add stripIndent(lines[i])
         i += 1
       outBlocks.add "<pre><code>" & escapeHtml(codeLines.join("\n")) & "</code></pre>"
       continue
@@ -495,8 +531,6 @@ proc parse*(p: Parser, md: string): string =
       outBlocks[^1] = last.replace("\n</ul>", "</ul>").replace("\n</ol>", "</ol>")
 
   var html = outBlocks.join("\n")
-  for plugin in p.plugins:
-    html = plugin(html)
 
   if footnoteDefs.len > 0:
     var fnHtml = "<div class='md-footnote'>\n<ol>\n"
@@ -504,5 +538,8 @@ proc parse*(p: Parser, md: string): string =
       fnHtml.add "<li id='fn-" & label & "'>" & parseInline(text, p.refs) & "</li>\n"
     fnHtml.add "</ol>\n</div>"
     html.add "\n" & fnHtml
+
+  for plugin in p.plugins:
+    html = plugin(html)
 
   return html
