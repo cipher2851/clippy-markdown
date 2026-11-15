@@ -44,7 +44,7 @@ proc stripTitle(s: string): string =
     if t.len == 2:
       return ""
     return t[1 .. ^2]
-  return t
+  return ""
 
 proc normalizeRefLabel(s: string): string =
   result = ""
@@ -63,13 +63,46 @@ proc findMatchingBracket(s: string, openIdx: int): int =
   if openIdx < 0 or openIdx >= s.len or s[openIdx] != '[':
     return -1
   var depth = 0
-  for idx in openIdx ..< s.len:
-    if s[idx] == '[':
+  var i = openIdx
+  while i < s.len:
+    let c = s[i]
+    if c == '\\':
+      if i + 1 < s.len:
+        i += 2
+      else:
+        i += 1
+      continue
+    if c == '`':
+      let start = i
+      var tickCount = 0
+      while i < s.len and s[i] == '`':
+        tickCount += 1
+        i += 1
+      var closePos = -1
+      var j = i
+      while j < s.len:
+        if s[j] == '`':
+          var k = j
+          while k < s.len and s[k] == '`':
+            k += 1
+          if k - j == tickCount:
+            closePos = k
+            break
+          j = k
+        else:
+          j += 1
+      if closePos >= 0:
+        i = closePos
+        continue
+      i = start + 1
+      continue
+    if c == '[':
       depth += 1
-    elif s[idx] == ']':
+    elif c == ']':
       depth -= 1
       if depth == 0:
-        return idx
+        return i
+    i += 1
   return -1
 
 proc parseDestination(inner: string): (string, string) =
@@ -457,9 +490,13 @@ proc parse*(p: Parser, md: string): string =
       var level = 0
       while level < trimmed.len and level < 6 and trimmed[level] == '#': level += 1
       if level >= 1 and (level == trimmed.len or trimmed[level].isSpaceAscii()):
-        let text = trimmed[level .. ^1].strip()
-        let id = slugify(text)
-        outBlocks.add "<h" & $level & " id='" & id & "'>" & parseInline(text, p.refs) & "</h" & $level & ">"
+        var headerText = trimmed[level .. ^1].strip()
+        var k = headerText.len - 1
+        while k >= 0 and headerText[k] == '#': k -= 1
+        if k >= 0 and k < headerText.len - 1 and headerText[k].isSpaceAscii():
+          headerText = headerText[0 .. k].strip()
+        let id = slugify(headerText)
+        outBlocks.add "<h" & $level & " id='" & id & "'>" & parseInline(headerText, p.refs) & "</h" & $level & ">"
         i += 1
         continue
     if trimmed.startsWith("```") or trimmed.startsWith("~~~"):
