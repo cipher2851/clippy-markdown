@@ -21,6 +21,11 @@ proc escapeHtml(s: string): string =
   result = result.replace("<", "&lt;")
   result = result.replace(">", "&gt;")
 
+proc escapeAttr(s: string): string =
+  result = escapeHtml(s)
+  result = result.replace("'", "&#39;")
+  result = result.replace("\"", "&quot;")
+
 proc escapeChar(c: char): string =
   case c
   of '&': "&amp;"
@@ -37,14 +42,31 @@ proc stripTitle(s: string): string =
     return t[1 .. ^2]
   return t
 
+proc normalizeRefLabel(s: string): string =
+  result = ""
+  var prevSpace = true
+  for c in s.strip():
+    if c.isSpaceAscii():
+      if not prevSpace:
+        result.add ' '
+      prevSpace = true
+    else:
+      result.add toLowerAscii($c)
+      prevSpace = false
+  result = result.strip()
+
 proc parseDestination(inner: string): (string, string) =
   let s = inner.strip()
+  if s.len == 0:
+    return ("", "")
   if s.startsWith("<"):
     let gt = s.find('>')
     if gt >= 0:
       let url = if gt > 1: s[1 .. gt - 1] else: ""
       let rest = if gt + 1 < s.len: s[gt + 1 .. ^1].strip() else: ""
       return (url, stripTitle(rest))
+  if s.startsWith("\"") or s.startsWith("'") or s.startsWith("("):
+    return ("", stripTitle(s))
   let sp = s.find(' ')
   if sp >= 0:
     return (s[0 .. sp - 1].strip(), stripTitle(s[sp + 1 .. ^1].strip()))
@@ -61,7 +83,7 @@ proc collectRefs(lines: seq[string]): Table[string, RefInfo] =
     let close = t.find(']')
     if close <= 1: continue
     if close + 1 >= t.len or t[close + 1] != ':': continue
-    let label = t[1 .. close - 1].strip().toLowerAscii()
+    let label = normalizeRefLabel(t[1 .. close - 1])
     if label.len == 0: continue
     let rest = if close + 2 < t.len: t[close + 2 .. ^1].strip() else: ""
     if rest.len == 0: continue
@@ -230,8 +252,8 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
             l += 1
           if l < n:
             let (url, title) = parseDestination(text[k + 1 .. l - 1])
-            result.add "<img src='" & url & "' alt='" & parseInline(alt, refs) & "'"
-            if title.len > 0: result.add " title='" & title & "'"
+            result.add "<img src='" & escapeAttr(url) & "' alt='" & escapeAttr(alt) & "'"
+            if title.len > 0: result.add " title='" & escapeAttr(title) & "'"
             result.add " />"
             i = l + 1
             continue
@@ -241,19 +263,19 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
           if l < n:
             var label = text[k + 1 .. l - 1].strip()
             if label == "": label = alt
-            let key = label.toLowerAscii()
+            let key = normalizeRefLabel(label)
             if refs.hasKey(key):
               let info = refs[key]
-              result.add "<img src='" & info.url & "' alt='" & parseInline(alt, refs) & "'"
-              if info.title.len > 0: result.add " title='" & info.title & "'"
+              result.add "<img src='" & escapeAttr(info.url) & "' alt='" & escapeAttr(alt) & "'"
+              if info.title.len > 0: result.add " title='" & escapeAttr(info.title) & "'"
               result.add " />"
               i = l + 1
               continue
-        let key = alt.strip().toLowerAscii()
+        let key = normalizeRefLabel(alt)
         if refs.hasKey(key):
           let info = refs[key]
-          result.add "<img src='" & info.url & "' alt='" & parseInline(alt, refs) & "'"
-          if info.title.len > 0: result.add " title='" & info.title & "'"
+          result.add "<img src='" & escapeAttr(info.url) & "' alt='" & escapeAttr(alt) & "'"
+          if info.title.len > 0: result.add " title='" & escapeAttr(info.title) & "'"
           result.add " />"
           i = j + 1
           continue
@@ -265,7 +287,7 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
       while j < n and text[j] != ']': j += 1
       if j < n and j > i + 2:
         let label = text[i + 2 .. j - 1]
-        result.add "<sup><a href='#fn-" & label & "'>" & escapeHtml(label) & "</a></sup>"
+        result.add "<sup><a href='#fn-" & escapeAttr(label) & "'>" & escapeHtml(label) & "</a></sup>"
         i = j + 1
         continue
     if text[i] == '[':
@@ -283,8 +305,8 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
             l += 1
           if l < n:
             let (url, title) = parseDestination(text[k + 1 .. l - 1])
-            result.add "<a href='" & url & "'"
-            if title.len > 0: result.add " title='" & title & "'"
+            result.add "<a href='" & escapeAttr(url) & "'"
+            if title.len > 0: result.add " title='" & escapeAttr(title) & "'"
             result.add ">" & parseInline(linkText, refs) & "</a>"
             i = l + 1
             continue
@@ -294,20 +316,20 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
           if l < n:
             var label = text[k + 1 .. l - 1].strip()
             if label == "": label = linkText
-            let key = label.toLowerAscii()
+            let key = normalizeRefLabel(label)
             if refs.hasKey(key):
               let info = refs[key]
-              result.add "<a href='" & info.url & "'"
-              if info.title.len > 0: result.add " title='" & info.title & "'"
+              result.add "<a href='" & escapeAttr(info.url) & "'"
+              if info.title.len > 0: result.add " title='" & escapeAttr(info.title) & "'"
               result.add ">" & parseInline(linkText, refs) & "</a>"
               i = l + 1
               continue
         if k >= n or (k < n and text[k] notin ['(', '[']):
-          let key = linkText.strip().toLowerAscii()
+          let key = normalizeRefLabel(linkText.strip())
           if refs.hasKey(key):
             let info = refs[key]
-            result.add "<a href='" & info.url & "'"
-            if info.title.len > 0: result.add " title='" & info.title & "'"
+            result.add "<a href='" & escapeAttr(info.url) & "'"
+            if info.title.len > 0: result.add " title='" & escapeAttr(info.title) & "'"
             result.add ">" & parseInline(linkText, refs) & "</a>"
             i = j + 1
             continue
@@ -406,7 +428,7 @@ proc parse*(p: Parser, md: string): string =
     if trimmed == "":
       i += 1
       continue
-    if isRefDef(trimmed):
+    if line.len - trimmed.len <= 3 and isRefDef(trimmed):
       i += 1
       continue
     if trimmed.startsWith("<!--"):
@@ -533,7 +555,7 @@ proc parse*(p: Parser, md: string): string =
       continue
     var paraLines: seq[string] = @[]
     while i < n and lines[i].strip() != "" and not isBlockStart(lines[i].strip(), lines, i):
-      if isRefDef(lines[i].strip()):
+      if lines[i].len - lines[i].strip().len <= 3 and isRefDef(lines[i].strip()):
         i += 1
         continue
       paraLines.add lines[i].strip()
@@ -552,7 +574,7 @@ proc parse*(p: Parser, md: string): string =
   if footnoteDefs.len > 0:
     var fnHtml = "<div class='md-footnote'>\n<ol>\n"
     for label, text in footnoteDefs:
-      fnHtml.add "<li id='fn-" & label & "'>" & parseInline(text, p.refs) & "</li>\n"
+      fnHtml.add "<li id='fn-" & escapeAttr(label) & "'>" & parseInline(text, p.refs) & "</li>\n"
     fnHtml.add "</ol>\n</div>"
     html.add "\n" & fnHtml
 
