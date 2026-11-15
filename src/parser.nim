@@ -59,6 +59,19 @@ proc normalizeRefLabel(s: string): string =
       prevSpace = false
   result = result.strip()
 
+proc findMatchingBracket(s: string, openIdx: int): int =
+  if openIdx < 0 or openIdx >= s.len or s[openIdx] != '[':
+    return -1
+  var depth = 0
+  for idx in openIdx ..< s.len:
+    if s[idx] == '[':
+      depth += 1
+    elif s[idx] == ']':
+      depth -= 1
+      if depth == 0:
+        return idx
+  return -1
+
 proc parseDestination(inner: string): (string, string) =
   let s = inner.strip()
   if s.len == 0:
@@ -84,21 +97,20 @@ proc collectRefs(lines: seq[string]): Table[string, RefInfo] =
     if t.startsWith("[^'): continue
     let leading = line.len - t.len
     if leading > 3: continue
-    let close = t.find(']')
+    let close = findMatchingBracket(t, 0)
     if close <= 1: continue
     if close + 1 >= t.len or t[close + 1] != ':': continue
     let label = normalizeRefLabel(t[1 .. close - 1])
     if label.len == 0: continue
     let rest = if close + 2 < t.len: t[close + 2 .. ^1].strip() else: ""
-    if rest.len == 0: continue
     let (url, title) = parseDestination(rest)
-    result[label] = RefInfo(url: url, title: title)
+    if not result.hasKey(label):
+      result[label] = RefInfo(url: url, title: title)
 
 proc isRefDef(line: string): bool =
   let t = line.strip()
   if not t.startsWith("["): return false
-  if t.startsWith("[^'): return false
-  let close = t.find(']')
+  let close = findMatchingBracket(t, 0)
   if close <= 1: return false
   if close + 1 >= t.len: return false
   return t[close + 1] == ':'
@@ -230,17 +242,8 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
         i += 1
         continue
     if text[i] == '!' and i + 1 < n and text[i + 1] == '[':
-      var j = i + 2
-      var bracketDepth = 1
-      while j < n and bracketDepth > 0:
-        if text[j] == '[':
-          bracketDepth += 1
-        elif text[j] == ']':
-          bracketDepth -= 1
-          if bracketDepth == 0:
-            break
-        j += 1
-      if j < n and bracketDepth == 0:
+      let j = findMatchingBracket(text, i + 1)
+      if j >= 0:
         let alt = text[i + 2 .. j - 1]
         var k = j + 1
         if k < n and text[k] == '(':
@@ -258,9 +261,8 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
             i = l + 1
             continue
         elif k < n and text[k] == '[':
-          var l = k + 1
-          while l < n and text[l] != ']': l += 1
-          if l < n:
+          let l = findMatchingBracket(text, k)
+          if l >= 0:
             var label = text[k + 1 .. l - 1].strip()
             if label == "": label = alt
             let key = normalizeRefLabel(label)
@@ -291,17 +293,8 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
         i = j + 1
         continue
     if text[i] == '[':
-      var j = i + 1
-      var bracketDepth = 1
-      while j < n and bracketDepth > 0:
-        if text[j] == '[':
-          bracketDepth += 1
-        elif text[j] == ']':
-          bracketDepth -= 1
-          if bracketDepth == 0:
-            break
-        j += 1
-      if j < n and bracketDepth == 0:
+      let j = findMatchingBracket(text, i)
+      if j >= 0:
         let linkText = text[i + 1 .. j - 1]
         var k = j + 1
         if k < n and text[k] == '(':
@@ -319,9 +312,8 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
             i = l + 1
             continue
         elif k < n and text[k] == '[':
-          var l = k + 1
-          while l < n and text[l] != ']': l += 1
-          if l < n:
+          let l = findMatchingBracket(text, k)
+          if l >= 0:
             var label = text[k + 1 .. l - 1].strip()
             if label == "": label = linkText
             let key = normalizeRefLabel(label)
@@ -419,12 +411,13 @@ proc parse*(p: Parser, md: string): string =
   for line in lines:
     let t = line.strip()
     if not t.startsWith("[^'): continue
-    let close = t.find(']')
+    let close = findMatchingBracket(t, 0)
     if close < 3: continue
     if close + 1 >= t.len or t[close + 1] != ':': continue
     let label = t[2 .. close - 1]
     let text = if close + 2 < t.len: t[close + 2 .. ^1].strip() else: ""
-    footnoteDefs[label] = text
+    if not footnoteDefs.hasKey(label):
+      footnoteDefs[label] = text
 
   var i = 0
   let n = lines.len

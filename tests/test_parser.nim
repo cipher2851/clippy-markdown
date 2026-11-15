@@ -104,3 +104,19 @@ suite "clippy markdown parser":
     let p = newParser()
     let html = p.parse("[x]\n\n[X]: /url")
     check html.contains("<a href='/url'>x</a>")
+
+  test "empty reference destination":
+    let p = newParser()
+    let html = p.parse("[x]\n\n[x]:")
+    check html.contains("<a href=''>x</a>")
+
+  test "first reference definition wins":
+    let p = newParser()
+    let html = p.parse("[x]\n\n[x]: /first\n[x]: /second")
+    check html.contains("<a href='/first'>x</a>")
+    check not html.contains("/second")
+
+  test "nested brackets in reference label":
+    let p = newParser()
+    let html = p.parse("[a [b]]\n\n[a [b]]: /url")
+    check html.contains("<a href='/url'>a [b]</a>")
