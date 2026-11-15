@@ -33,12 +33,16 @@ proc escapeChar(c: char): string =
   of '>': "&gt;"
   else: $c
 
+const EscapableChars = {'!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~'}
+
 proc stripTitle(s: string): string =
   let t = s.strip()
   if t.len == 0: return ""
   if ((t.startsWith("\"") and t.endsWith("\"")) or
      (t.startsWith("'") and t.endsWith("'")) or
-     (t.startsWith("(") and t.endsWith(")"))) and t.len > 2:
+     (t.startsWith("(") and t.endsWith(")"))) and t.len >= 2:
+    if t.len == 2:
+      return ""
     return t[1 .. ^2]
   return t
 
@@ -87,21 +91,7 @@ proc collectRefs(lines: seq[string]): Table[string, RefInfo] =
     if label.len == 0: continue
     let rest = if close + 2 < t.len: t[close + 2 .. ^1].strip() else: ""
     if rest.len == 0: continue
-    var url = ""
-    var title = ""
-    if rest.startsWith("<"):
-      let gt = rest.find('>')
-      if gt >= 1:
-        if gt > 1:
-          url = rest[1 .. gt - 1]
-        let afterGt = if gt + 1 < rest.len: rest[gt + 1 .. ^1].strip() else: ""
-        title = stripTitle(afterGt)
-    else:
-      var i = 0
-      while i < rest.len and not rest[i].isSpaceAscii(): i += 1
-      url = rest[0 ..< i]
-      let afterUrl = if i < rest.len: rest[i .. ^1].strip() else: ""
-      title = stripTitle(afterUrl)
+    let (url, title) = parseDestination(rest)
     result[label] = RefInfo(url: url, title: title)
 
 proc isRefDef(line: string): bool =
@@ -223,9 +213,11 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
   let n = text.len
   while i < n:
     if text[i] == '\\' and i + 1 < n:
-      result.add escapeChar(text[i + 1])
-      i += 2
-      continue
+      let c = text[i + 1]
+      if c in EscapableChars:
+        result.add escapeChar(c)
+        i += 2
+        continue
     if text[i] == '`':
       var j = i + 1
       while j < n and text[j] != '`': j += 1
@@ -239,8 +231,16 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
         continue
     if text[i] == '!' and i + 1 < n and text[i + 1] == '[':
       var j = i + 2
-      while j < n and text[j] != ']': j += 1
-      if j < n:
+      var bracketDepth = 1
+      while j < n and bracketDepth > 0:
+        if text[j] == '[':
+          bracketDepth += 1
+        elif text[j] == ']':
+          bracketDepth -= 1
+          if bracketDepth == 0:
+            break
+        j += 1
+      if j < n and bracketDepth == 0:
         let alt = text[i + 2 .. j - 1]
         var k = j + 1
         if k < n and text[k] == '(':
@@ -292,8 +292,16 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
         continue
     if text[i] == '[':
       var j = i + 1
-      while j < n and text[j] != ']': j += 1
-      if j < n:
+      var bracketDepth = 1
+      while j < n and bracketDepth > 0:
+        if text[j] == '[':
+          bracketDepth += 1
+        elif text[j] == ']':
+          bracketDepth -= 1
+          if bracketDepth == 0:
+            break
+        j += 1
+      if j < n and bracketDepth == 0:
         let linkText = text[i + 1 .. j - 1]
         var k = j + 1
         if k < n and text[k] == '(':
