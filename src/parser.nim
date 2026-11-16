@@ -318,9 +318,8 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
       i += 1
       continue
     if text[i] == '[' and i + 1 < n and text[i + 1] == '^':
-      var j = i + 2
-      while j < n and text[j] != ']': j += 1
-      if j < n and j > i + 2:
+      let j = findMatchingBracket(text, i)
+      if j >= 0 and j > i + 2:
         let label = text[i + 2 .. j - 1]
         result.add "<sup><a href='#fn-" & escapeAttr(label) & "'>" & escapeHtml(label) & "</a></sup>"
         i = j + 1
@@ -492,8 +491,10 @@ proc parse*(p: Parser, md: string): string =
       if level >= 1 and (level == trimmed.len or trimmed[level].isSpaceAscii()):
         var headerText = trimmed[level .. ^1].strip()
         var k = headerText.len - 1
+        while k >= 0 and headerText[k] == ' ': k -= 1
+        let hashEnd = k
         while k >= 0 and headerText[k] == '#': k -= 1
-        if k >= 0 and k < headerText.len - 1 and headerText[k].isSpaceAscii():
+        if hashEnd >= 0 and k >= 0 and k < hashEnd and headerText[k].isSpaceAscii():
           headerText = headerText[0 .. k].strip()
         let id = slugify(headerText)
         outBlocks.add "<h" & $level & " id='" & id & "'>" & parseInline(headerText, p.refs) & "</h" & $level & ">"
