@@ -283,7 +283,7 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
         else:
           k += 1
       if closePos >= 0:
-        var code = text[j .. closePos - 1]
+        var code = if closePos > j: text[j .. closePos - 1] else: ""
         var allSpaces = code.len > 0
         for ch in code:
           if not ch.isSpaceAscii():
@@ -301,7 +301,7 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
     if text[i] == '!' and i + 1 < n and text[i + 1] == '[':
       let j = findMatchingBracket(text, i + 1)
       if j >= 0:
-        let alt = text[i + 2 .. j - 1]
+        let alt = if j > i + 2: text[i + 2 .. j - 1] else: ""
         var k = j + 1
         if k < n and text[k] == '(':
           var l = k + 1
@@ -311,7 +311,8 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
             elif text[l] == ')': depthp -= 1
             l += 1
           if l < n:
-            let (url, title) = parseDestination(text[k + 1 .. l - 1])
+            let destText = if l > k + 1: text[k + 1 .. l - 1] else: ""
+            let (url, title) = parseDestination(destText)
             result.add "<img src='" & escapeAttr(url) & "' alt='" & escapeAttr(alt) & "'"
             if title.len > 0: result.add " title='" & escapeAttr(title) & "'"
             result.add " />"
@@ -320,7 +321,8 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
         elif k < n and text[k] == '[':
           let l = findMatchingBracket(text, k)
           if l >= 0:
-            var label = text[k + 1 .. l - 1].strip()
+            let rawLabel = if l > k + 1: text[k + 1 .. l - 1] else: ""
+            var label = rawLabel.strip()
             if label == "": label = alt
             let key = normalizeRefLabel(label)
             if refs.hasKey(key):
@@ -351,7 +353,7 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
     if text[i] == '[':
       let j = findMatchingBracket(text, i)
       if j >= 0:
-        let linkText = text[i + 1 .. j - 1]
+        let linkText = if j > i + 1: text[i + 1 .. j - 1] else: ""
         var k = j + 1
         if k < n and text[k] == '(':
           var l = k + 1
@@ -361,7 +363,8 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
             elif text[l] == ')': depthp -= 1
             l += 1
           if l < n:
-            let (url, title) = parseDestination(text[k + 1 .. l - 1])
+            let destText = if l > k + 1: text[k + 1 .. l - 1] else: ""
+            let (url, title) = parseDestination(destText)
             result.add "<a href='" & escapeAttr(url) & "'"
             if title.len > 0: result.add " title='" & escapeAttr(title) & "'"
             result.add ">" & parseInline(linkText, refs) & "</a>"
@@ -370,7 +373,8 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
         elif k < n and text[k] == '[':
           let l = findMatchingBracket(text, k)
           if l >= 0:
-            var label = text[k + 1 .. l - 1].strip()
+            let rawLabel = if l > k + 1: text[k + 1 .. l - 1] else: ""
+            var label = rawLabel.strip()
             if label == "": label = linkText
             let key = normalizeRefLabel(label)
             if refs.hasKey(key):
@@ -528,7 +532,8 @@ proc parse*(p: Parser, md: string): string =
         outBlocks.add "<h" & $level & " id='" & id & "'>" & parseInline(headerText, p.refs) & "</h" & $level & ">"
         i += 1
         continue
-    if trimmed.startsWith("```") or trimmed.startsWith("~~~"):
+    let fenceIndent = line.len - trimmed.len
+    if fenceIndent <= 3 and (trimmed.startsWith("```") or trimmed.startsWith("~~~")):
       let fenceChar = trimmed[0]
       var fenceLen = 0
       while fenceLen < trimmed.len and trimmed[fenceLen] == fenceChar:
@@ -537,10 +542,11 @@ proc parse*(p: Parser, md: string): string =
       var codeLines: seq[string] = @[]
       while i < n:
         let ct = lines[i].strip()
+        let closeIndent = lines[i].len - ct.len
         var closeLen = 0
         while closeLen < ct.len and ct[closeLen] == fenceChar:
           closeLen += 1
-        if closeLen >= fenceLen:
+        if closeLen >= fenceLen and closeIndent <= 3:
           let rest = if closeLen < ct.len: ct[closeLen .. ^1].strip() else: ""
           if rest == "":
             break
