@@ -127,7 +127,7 @@ proc collectRefs(lines: seq[string]): Table[string, RefInfo] =
   for line in lines:
     let t = line.strip()
     if t.len == 0 or not t.startsWith("["): continue
-    if t.startsWith("[^'): continue
+    if t.startsWith("[^"): continue
     let leading = line.len - t.len
     if leading > 3: continue
     let close = findMatchingBracket(t, 0)
@@ -264,11 +264,35 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
         i += 2
         continue
     if text[i] == '`':
-      var j = i + 1
-      while j < n and text[j] != '`': j += 1
-      if j < n:
-        result.add "<code style='background: #f4f4f4; padding: 2px 4px; border-radius: 3px;'>" & escapeHtml(text[i + 1 .. j - 1]) & "</code>"
-        i = j + 1
+      var tickCount = 0
+      var j = i
+      while j < n and text[j] == '`':
+        tickCount += 1
+        j += 1
+      var closePos = -1
+      var k = j
+      while k < n:
+        if text[k] == '`':
+          var m = k
+          while m < n and text[m] == '`':
+            m += 1
+          if m - k == tickCount:
+            closePos = k
+            break
+          k = m
+        else:
+          k += 1
+      if closePos >= 0:
+        var code = text[j .. closePos - 1]
+        var allSpaces = code.len > 0
+        for ch in code:
+          if not ch.isSpaceAscii():
+            allSpaces = false
+            break
+        if code.len >= 2 and code[0].isSpaceAscii() and code[^1].isSpaceAscii() and not allSpaces:
+          code = code[1 .. ^2]
+        result.add "<code style='background: #f4f4f4; padding: 2px 4px; border-radius: 3px;'>" & escapeHtml(code) & "</code>"
+        i = closePos + tickCount
         continue
       else:
         result.add "`"
@@ -442,12 +466,13 @@ proc parse*(p: Parser, md: string): string =
   var footnoteDefs = initOrderedTable[string, string]()
   for line in lines:
     let t = line.strip()
-    if not t.startsWith("[^'): continue
+    if not t.startsWith("[^"): continue
     let close = findMatchingBracket(t, 0)
     if close < 3: continue
     if close + 1 >= t.len or t[close + 1] != ':': continue
     let label = t[2 .. close - 1]
     let text = if close + 2 < t.len: t[close + 2 .. ^1].strip() else: ""
+
     if not footnoteDefs.hasKey(label):
       footnoteDefs[label] = text
 
@@ -480,7 +505,7 @@ proc parse*(p: Parser, md: string): string =
         else:
           i = n
         continue
-    if trimmed.startsWith("[^') and trimmed.contains("]:"):
+    if trimmed.startsWith("[^") and trimmed.contains("]:"):
       let close = findMatchingBracket(trimmed, 0)
       if close >= 3 and close + 1 < trimmed.len and trimmed[close + 1] == ':':
         i += 1
