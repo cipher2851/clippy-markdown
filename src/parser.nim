@@ -481,8 +481,8 @@ proc parse*(p: Parser, md: string): string =
           i = n
         continue
     if trimmed.startsWith("[^') and trimmed.contains("]:"):
-      let close = trimmed.find(']')
-      if close > 0 and close + 1 < trimmed.len and trimmed[close + 1] == ':':
+      let close = findMatchingBracket(trimmed, 0)
+      if close >= 3 and close + 1 < trimmed.len and trimmed[close + 1] == ':':
         i += 1
         continue
     if trimmed.startsWith("#"):
