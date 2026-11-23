@@ -514,25 +514,40 @@ proc parse*(p: Parser, md: string): string =
       var level = 0
       while level < trimmed.len and level < 6 and trimmed[level] == '#': level += 1
       if level >= 1 and (level == trimmed.len or trimmed[level].isSpaceAscii()):
-        var headerText = trimmed[level .. ^1].strip()
+        var headerText = if level < trimmed.len: trimmed[level .. ^1].strip() else: ""
         var k = headerText.len - 1
         while k >= 0 and headerText[k] == ' ': k -= 1
         let hashEnd = k
         while k >= 0 and headerText[k] == '#': k -= 1
-        if hashEnd >= 0 and k >= 0 and k < hashEnd and headerText[k].isSpaceAscii():
-          headerText = headerText[0 .. k].strip()
+        if hashEnd >= 0 and k < hashEnd and (k < 0 or headerText[k].isSpaceAscii()):
+          if k >= 0:
+            headerText = headerText[0 .. k].strip()
+          else:
+            headerText = ""
         let id = slugify(headerText)
         outBlocks.add "<h" & $level & " id='" & id & "'>" & parseInline(headerText, p.refs) & "</h" & $level & ">"
         i += 1
         continue
     if trimmed.startsWith("```") or trimmed.startsWith("~~~"):
-      let fence = trimmed[0 .. 2]
+      let fenceChar = trimmed[0]
+      var fenceLen = 0
+      while fenceLen < trimmed.len and trimmed[fenceLen] == fenceChar:
+        fenceLen += 1
       i += 1
       var codeLines: seq[string] = @[]
-      while i < n and not lines[i].strip().startsWith(fence):
+      while i < n:
+        let ct = lines[i].strip()
+        var closeLen = 0
+        while closeLen < ct.len and ct[closeLen] == fenceChar:
+          closeLen += 1
+        if closeLen >= fenceLen:
+          let rest = if closeLen < ct.len: ct[closeLen .. ^1].strip() else: ""
+          if rest == "":
+            break
         codeLines.add lines[i]
         i += 1
-      i += 1
+      if i < n:
+        i += 1
       outBlocks.add "<pre><code>" & escapeHtml(codeLines.join("\n")) & "</code></pre>"
       continue
     if isHr(trimmed):
