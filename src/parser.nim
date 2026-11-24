@@ -399,28 +399,28 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
     if text[i] == '*' and i + 1 < n and text[i + 1] == '*':
       var j = i + 2
       while j + 1 < n and not (text[j] == '*' and text[j + 1] == '*'): j += 1
-      if j + 1 < n:
+      if j + 1 < n and j > i + 2:
         result.add "<strong>" & parseInline(text[i + 2 .. j - 1], refs) & "</strong>"
         i = j + 2
         continue
     if text[i] == '*':
       var j = i + 1
       while j < n and text[j] != '*': j += 1
-      if j < n:
+      if j < n and j > i + 1:
         result.add "<em>" & parseInline(text[i + 1 .. j - 1], refs) & "</em>"
         i = j + 1
         continue
     if text[i] == '_':
       var j = i + 1
       while j < n and text[j] != '_': j += 1
-      if j < n:
+      if j < n and j > i + 1:
         result.add "<em>" & parseInline(text[i + 1 .. j - 1], refs) & "</em>"
         i = j + 1
         continue
     if text[i] == '~' and i + 1 < n and text[i + 1] == '~':
       var j = i + 2
       while j + 1 < n and not (text[j] == '~' and text[j + 1] == '~'): j += 1
-      if j + 1 < n:
+      if j + 1 < n and j > i + 2:
         result.add "<del>" & parseInline(text[i + 2 .. j - 1], refs) & "</del>"
         i = j + 2
         continue
@@ -428,14 +428,14 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
       if i + 1 < n and text[i + 1] == '$':
         var j = i + 2
         while j + 1 < n and not (text[j] == '$' and text[j + 1] == '$'): j += 1
-        if j + 1 < n:
+        if j + 1 < n and j > i + 2:
           result.add "<div class='math-display'>" & escapeHtml(text[i + 2 .. j - 1]) & "</div>"
           i = j + 2
           continue
       else:
         var j = i + 1
         while j < n and text[j] != '$': j += 1
-        if j < n:
+        if j < n and j > i + 1:
           result.add "<span class='math-inline'>" & escapeHtml(text[i + 1 .. j - 1]) & "</span>"
           i = j + 1
           continue

@@ -120,3 +120,12 @@ suite "clippy markdown parser":
     let p = newParser()
     let html = p.parse("[a [b]]\n\n[a [b]]: /url")
     check html.contains("<a href='/url'>a [b]</a>")
+
+  test "empty emphasis delimiter runs are literal":
+    let p = newParser()
+    check p.parse("****") == "<p>****</p>"
+    check p.parse("~~~~") == "<p>~~~~</p>"
+
+  test "empty math delimiter runs are literal":
+    let p = newParser()
+    check p.parse("$$") == "<p>$$</p>"
