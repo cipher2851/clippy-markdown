@@ -129,3 +129,12 @@ suite "clippy markdown parser":
   test "empty math delimiter runs are literal":
     let p = newParser()
     check p.parse("$$") == "<p>$$</p>"
+
+  test "indented code block keeps blank lines":
+    let p = newParser()
+    let html = p.parse("    line 1\n\n    line 2")
+    check html == "<pre><code>line 1\n\nline 2</code></pre>"
+
+  test "indented code does not interrupt paragraph":
+    let p = newParser()
+    check p.parse("foo\n    bar") == "<p>foo bar</p>"

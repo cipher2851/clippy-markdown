@@ -457,7 +457,6 @@ proc isBlockStart(t: string, lines: seq[string], i: int): bool =
   if t.startsWith("```") or t.startsWith("~~~"): return true
   if isHr(t): return true
   if isListItem(t): return true
-  if lines[i].startsWith("    ") or lines[i].startsWith("\t"): return true
   if t.startsWith("$$"): return true
   if isRefDef(t): return true
   if i + 1 < lines.len and isTableSep(lines[i + 1].strip()): return true
@@ -633,9 +632,21 @@ proc parse*(p: Parser, md: string): string =
       continue
     if line.startsWith("    ") or line.startsWith("\t"):
       var codeLines: seq[string] = @[]
-      while i < n and (lines[i].startsWith("    ") or lines[i].startsWith("\t")):
-        codeLines.add stripIndent(lines[i])
-        i += 1
+      while i < n:
+        if lines[i].startsWith("    ") or lines[i].startsWith("\t"):
+          codeLines.add stripIndent(lines[i])
+          i += 1
+        elif lines[i].strip() == "":
+          var j = i + 1
+          while j < n and lines[j].strip() == "":
+            j += 1
+          if j < n and (lines[j].startsWith("    ") or lines[j].startsWith("\t")):
+            codeLines.add ""
+            i += 1
+          else:
+            break
+        else:
+          break
       outBlocks.add "<pre><code>" & escapeHtml(codeLines.join("\n")) & "</code></pre>"
       continue
     var paraLines: seq[string] = @[]
