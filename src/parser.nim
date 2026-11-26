@@ -128,7 +128,7 @@ proc collectRefs(lines: seq[string]): Table[string, RefInfo] =
     let t = line.strip()
     if t.len == 0 or not t.startsWith("["): continue
     if t.startsWith("[^"): continue
-    let leading = line.len - t.len
+    let leading = leadingIndent(line)
     if leading > 3: continue
     let close = findMatchingBracket(t, 0)
     if close <= 1: continue
@@ -188,6 +188,16 @@ proc stripIndent(s: string): string =
     if s.len > 4: return s[4 .. ^1]
     return ""
   return s
+
+proc leadingIndent(line: string): int =
+  result = 0
+  for c in line:
+    if c == ' ':
+      result += 1
+    elif c == '\t':
+      result += 4 - (result mod 4)
+    else:
+      break
 
 proc isTableSep(line: string): bool =
   let t = line.strip()
@@ -449,6 +459,7 @@ proc parseInline(text: string, refs: Table[string, RefInfo]): string =
 
 proc isBlockStart(t: string, lines: seq[string], i: int): bool =
   if t == "": return true
+  if leadingIndent(lines[i]) > 3: return false
   if t.startsWith("#"):
     var level = 0
     while level < t.len and level < 6 and t[level] == '#': level += 1
@@ -489,10 +500,12 @@ proc parse*(p: Parser, md: string): string =
     if trimmed == "":
       i += 1
       continue
-    if line.len - trimmed.len <= 3 and isRefDef(trimmed):
-      i += 1
-      continue
-    if trimmed.startsWith("<!--"):
+    let blockIndent = leadingIndent(line)
+    if blockIndent <= 3 and isRefDef(trimmed):
+      if line.len - trimmed.len <= 3:
+        i += 1
+        continue
+    if blockIndent <= 3 and trimmed.startsWith("<!--"):
       let endPos = trimmed.find("-->")
       if endPos >= 0:
         let afterComment = if endPos + 3 < trimmed.len: trimmed[endPos + 3 .. ^1].strip() else: ""
@@ -508,12 +521,12 @@ proc parse*(p: Parser, md: string): string =
         else:
           i = n
         continue
-    if trimmed.startsWith("[^") and trimmed.contains("]:"):
+    if blockIndent <= 3 and trimmed.startsWith("[^") and trimmed.contains("]:"):
       let close = findMatchingBracket(trimmed, 0)
       if close >= 3 and close + 1 < trimmed.len and trimmed[close + 1] == ':':
         i += 1
         continue
-    if trimmed.startsWith("#"):
+    if blockIndent <= 3 and trimmed.startsWith("#"):
       var level = 0
       while level < trimmed.len and level < 6 and trimmed[level] == '#': level += 1
       if level >= 1 and (level == trimmed.len or trimmed[level].isSpaceAscii()):
@@ -531,8 +544,7 @@ proc parse*(p: Parser, md: string): string =
         outBlocks.add "<h" & $level & " id='" & id & "'>" & parseInline(headerText, p.refs) & "</h" & $level & ">"
         i += 1
         continue
-    let fenceIndent = line.len - trimmed.len
-    if fenceIndent <= 3 and (trimmed.startsWith("```") or trimmed.startsWith("~~~")):
+    if blockIndent <= 3 and (trimmed.startsWith("```") or trimmed.startsWith("~~~")):
       let fenceChar = trimmed[0]
       var fenceLen = 0
       while fenceLen < trimmed.len and trimmed[fenceLen] == fenceChar:
@@ -541,7 +553,7 @@ proc parse*(p: Parser, md: string): string =
       var codeLines: seq[string] = @[]
       while i < n:
         let ct = lines[i].strip()
-        let closeIndent = lines[i].len - ct.len
+        let closeIndent = leadingIndent(lines[i])
         var closeLen = 0
         while closeLen < ct.len and ct[closeLen] == fenceChar:
           closeLen += 1
@@ -555,11 +567,11 @@ proc parse*(p: Parser, md: string): string =
         i += 1
       outBlocks.add "<pre><code>" & escapeHtml(codeLines.join("\n")) & "</code></pre>"
       continue
-    if isHr(trimmed):
+    if blockIndent <= 3 and isHr(trimmed):
       outBlocks.add "<hr />"
       i += 1
       continue
-    if trimmed.startsWith(">"):
+    if blockIndent <= 3 and trimmed.startsWith(">"):
       var bqLines: seq[string] = @[]
       while i < n and lines[i].strip().startsWith(">"):
         let bq = lines[i].strip()
@@ -570,11 +582,11 @@ proc parse*(p: Parser, md: string): string =
         i += 1
       outBlocks.add "<blockquote class='md-blockquote'>" & parseInline(bqLines.join(" "), p.refs) & "</blockquote>"
       continue
-    if trimmed.startsWith("$$") and trimmed.endsWith("$$") and trimmed.len > 4:
+    if blockIndent <= 3 and trimmed.startsWith("$$") and trimmed.endsWith("$$") and trimmed.len > 4:
       outBlocks.add "<div class='math-display'>" & escapeHtml(trimmed[2 .. ^3]) & "</div>"
       i += 1
       continue
-    if trimmed.startsWith("$$"):
+    if blockIndent <= 3 and trimmed.startsWith("$$"):
       var closeIdx = -1
       for j in i + 1 ..< n:
         if lines[j].strip().startsWith("$$"):
@@ -601,12 +613,12 @@ proc parse*(p: Parser, md: string): string =
       i = closeIdx + 1
       outBlocks.add "<div class='math-display'>" & escapeHtml(mathLines.join("\n")) & "</div>"
       continue
-    if i + 1 < n and isTableSep(lines[i + 1].strip()):
+    if blockIndent <= 3 and i + 1 < n and isTableSep(lines[i + 1].strip()):
       let (html, newI) = parseTable(lines, i, p.refs)
       outBlocks.add html
       i = newI
       continue
-    if isListItem(trimmed):
+    if blockIndent <= 3 and isListItem(trimmed):
       var ordered = isOrderedItem(trimmed)
       var items: seq[string] = @[]
       while i < n and isListItem(lines[i].strip()) and isOrderedItem(lines[i].strip()) == ordered:

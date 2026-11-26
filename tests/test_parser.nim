@@ -138,3 +138,15 @@ suite "clippy markdown parser":
   test "indented code does not interrupt paragraph":
     let p = newParser()
     check p.parse("foo\n    bar") == "<p>foo bar</p>"
+
+  test "indented heading is code":
+    let p = newParser()
+    check p.parse("    # foo") == "<pre><code># foo</code></pre>"
+
+  test "indented list is code":
+    let p = newParser()
+    check p.parse("    - foo") == "<pre><code>- foo</code></pre>"
+
+  test "tab-indented code":
+    let p = newParser()
+    check p.parse("\tfoo") == "<pre><code>foo</code></pre>"
