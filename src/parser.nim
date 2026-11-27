@@ -181,13 +181,20 @@ proc stripListMarker(t: string): string =
   return t
 
 proc stripIndent(s: string): string =
-  if s.startsWith("\t"):
-    if s.len > 1: return s[1 .. ^1]
+  var col = 0
+  var i = 0
+  while i < s.len and col < 4:
+    if s[i] == ' ':
+      col += 1
+      i += 1
+    elif s[i] == '\t':
+      col = 4
+      i += 1
+    else:
+      break
+  if i >= s.len:
     return ""
-  if s.startsWith("    "):
-    if s.len > 4: return s[4 .. ^1]
-    return ""
-  return s
+  return s[i .. ^1]
 
 proc leadingIndent(line: string): int =
   result = 0
@@ -642,17 +649,17 @@ proc parse*(p: Parser, md: string): string =
       html.add "</" & tag & ">"
       outBlocks.add html
       continue
-    if line.startsWith("    ") or line.startsWith("\t"):
+    if leadingIndent(line) >= 4:
       var codeLines: seq[string] = @[]
       while i < n:
-        if lines[i].startsWith("    ") or lines[i].startsWith("\t"):
+        if leadingIndent(lines[i]) >= 4:
           codeLines.add stripIndent(lines[i])
           i += 1
         elif lines[i].strip() == "":
           var j = i + 1
           while j < n and lines[j].strip() == "":
             j += 1
-          if j < n and (lines[j].startsWith("    ") or lines[j].startsWith("\t")):
+          if j < n and leadingIndent(lines[j]) >= 4:
             codeLines.add ""
             i += 1
           else:

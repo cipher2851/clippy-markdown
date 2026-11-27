@@ -150,3 +150,12 @@ suite "clippy markdown parser":
   test "tab-indented code":
     let p = newParser()
     check p.parse("\tfoo") == "<pre><code>foo</code></pre>"
+
+  test "mixed tab and space indented code":
+    let p = newParser()
+    check p.parse("   \tfoo") == "<pre><code>foo</code></pre>"
+
+  test "mixed indented code preserves blank lines":
+    let p = newParser()
+    let html = p.parse("    line 1\n\n   \tline 2")
+    check html == "<pre><code>line 1\n\nline 2</code></pre>"
